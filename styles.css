@@ -300,10 +300,22 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 /* Card Hover Elevation */
 .hover-elevate {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
 }
 
 .hover-elevate:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-lg);
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+/* AP Toggle Buttons */
+.ap-toggle-btn {
+  user-select: none;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.ap-toggle-btn:active {
+  transform: scale(0.94);
 }

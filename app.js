@@ -33,6 +33,25 @@ const MathUtils = {
     return ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1;
   },
 
+  // Get exact intersection point between line segment AB and CD (or null if none)
+  getLineIntersectionPoint(p1, p2, p3, p4) {
+    const denom = (p4.y - p3.y) * (p2.x - p1.x) - (p4.x - p3.x) * (p2.y - p1.y);
+    if (denom === 0) return null;
+
+    const ua = ((p4.x - p3.x) * (p1.y - p3.y) - (p4.y - p3.y) * (p1.x - p3.x)) / denom;
+    const ub = ((p2.x - p1.x) * (p1.y - p3.y) - (p2.y - p1.y) * (p1.x - p3.x)) / denom;
+
+    if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) {
+      return {
+        x: p1.x + ua * (p2.x - p1.x),
+        y: p1.y + ua * (p2.y - p1.y),
+        ua,
+        ub
+      };
+    }
+    return null;
+  },
+
   // Check if a point is inside a rectangle
   pointInRect(pt, rect) {
     return pt.x >= rect.x && pt.x <= rect.x + rect.w &&
@@ -154,6 +173,7 @@ class AccessPoint {
     this.connectedUsers = [];
     this.pulsePhase = Math.random() * Math.PI * 2;
     this.radius = 16;
+    this.enabled = true;
   }
 
   get load() {
@@ -161,11 +181,24 @@ class AccessPoint {
   }
 
   get isFull() {
-    return this.load >= this.maxCapacity;
+    return !this.enabled || this.load >= this.maxCapacity;
   }
 
   distanceTo(pos) {
     return MathUtils.distance(this.pos, pos);
+  }
+
+  addUser(user) {
+    if (!this.connectedUsers.includes(user)) {
+      this.connectedUsers.push(user);
+    }
+  }
+
+  removeUser(user) {
+    const idx = this.connectedUsers.indexOf(user);
+    if (idx !== -1) {
+      this.connectedUsers.splice(idx, 1);
+    }
   }
 }
 
@@ -180,13 +213,37 @@ class User {
     this.currentAp = null;
     this.threatenedAp = null;
     this.threatTimer = 0;
+    this.overloadTimer = 0;
     this.failedAp = null;
     this.isDropped = false;
     this.handoverCooldown = 0;
 
-    // Transition interpolation for smooth visual fade
+    // Solution 2: Predictive Camera Queuing System
+    this.isQueued = false;
+    this.queuedTargetAp = null;
+    this.queuedObstacle = null;
+    this.predictedInterceptPoint = null;
+    this.predictedInterceptDistance = 0;
+
+    // Solution 3: Dynamic Optical Beam Steering (Zero Handover)
+    this.steerCpX = null;
+    this.steerCpY = null;
+    this.currentCurvature = 0;
+    this.activePhaseShift = 0;
+    this.deflectionAngle = 0;
+    this.clearanceDistance = 0;
+    this.isBeingSteered = false;
+    this.steeringObstacle = null;
+
+    // Solution 4: Complete Congestion & Wi-Fi Fallback
+    this.isWifiFallback = false;
+    this.wifiFallbackTimer = 0;
+    this.assignedApBeforeWifi = null;
+
+    // Transition interpolation for smooth visual moving of beam connections
     this.previousAp = null;
     this.fadeProgress = 1.0;
+    this.transitionProgress = 1.0;
   }
 }
 
@@ -226,6 +283,9 @@ class MovingObstacle {
     this.vy = vy;
     this.baseVx = vx;
     this.baseVy = vy;
+    this.isStopped = false;
+    this.savedVx = vx;
+    this.savedVy = vy;
     this.laneType = laneType; // 'horizontal' or 'vertical'
     this.leadDistance = leadDistance;
   }
@@ -271,6 +331,8 @@ class MovingObstacle {
   }
 
   update(speedFactor, canvasW = 1000, canvasH = 800) {
+    if (this.isStopped) return;
+
     this.x += this.vx * speedFactor;
     this.y += this.vy * speedFactor;
 
@@ -287,6 +349,82 @@ class MovingObstacle {
       } else if (this.vy < 0 && this.y < -this.h - 60) {
         this.y = canvasH + 50;
       }
+    }
+  }
+
+  toggleStop() {
+    this.isStopped = !this.isStopped;
+    if (this.isStopped) {
+      this.savedVx = this.vx;
+      this.savedVy = this.vy;
+      this.vx = 0;
+      this.vy = 0;
+    } else {
+      this.vx = this.savedVx || this.baseVx;
+      this.vy = this.savedVy || this.baseVy;
+    }
+  }
+
+  invertDirection() {
+    this.vx = -this.vx;
+    this.vy = -this.vy;
+    this.baseVx = this.vx;
+    this.baseVy = this.vy;
+    this.savedVx = this.vx;
+    this.savedVy = this.vy;
+  }
+}
+
+// Camera tracking node placed at lane intersections
+class CameraNode {
+  constructor(id, x, y, name) {
+    this.id = id;
+    this.x = x;
+    this.y = y;
+    this.pos = { x, y };
+    this.name = name;
+    this.scanAngle = (id - 1) * (Math.PI / 2);
+    this.targetAngle = this.scanAngle;
+    this.trackedObstacle = null;
+    this.obstacleCoords = null;
+    this.obstacleVelocity = null;
+    this.status = 'SCANNING'; // 'SCANNING' or 'TRACKING'
+    this.radius = 14;
+  }
+
+  update(obstacles, speedFactor = 1.0) {
+    // Search for closest obstacle within 280px field of view
+    let closest = null;
+    let minD = 280;
+
+    for (const obs of obstacles) {
+      const ocx = obs.x + obs.w / 2;
+      const ocy = obs.y + obs.h / 2;
+      const d = MathUtils.distance(this.pos, { x: ocx, y: ocy });
+      if (d < minD) {
+        minD = d;
+        closest = obs;
+      }
+    }
+
+    this.trackedObstacle = closest;
+    if (closest) {
+      this.status = 'TRACKING';
+      const ocx = closest.x + closest.w / 2;
+      const ocy = closest.y + closest.h / 2;
+      this.obstacleCoords = { x: Math.round(ocx), y: Math.round(ocy) };
+      this.obstacleVelocity = { vx: closest.vx, vy: closest.vy };
+      this.targetAngle = Math.atan2(ocy - this.y, ocx - this.x);
+      // Smoothly rotate camera aperture towards target
+      let diff = this.targetAngle - this.scanAngle;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      this.scanAngle += diff * 0.15;
+    } else {
+      this.status = 'SCANNING';
+      this.obstacleCoords = null;
+      this.obstacleVelocity = null;
+      this.scanAngle += 0.02 * speedFactor;
     }
   }
 }
@@ -336,7 +474,7 @@ class LiFiDigitalTwin {
     this.activeSolution = 'load-balance'; // 'load-balance' or 'predictive'
     this.isPaused = false;
     this.speedMultiplier = 1.0;
-    this.defaultCapacity = 3; // Default 3 users/AP
+    this.defaultCapacity = 4; // Default 4 users/AP (matches top control dropdown)
     this.beamStyle = 'pulse'; // 'pulse', 'fade', 'instant'
     this.showGrid = true;
     this.showZones = true;
@@ -414,6 +552,18 @@ class LiFiDigitalTwin {
 
     // Moving Obstacles (Patrons walking along aisles with forward warning zones)
     this.initObstacles();
+    this.initCameras();
+  }
+
+  initCameras() {
+    // 4 Camera nodes placed at the 4 lane intersections
+    // H1 (center Y=250), H2 (center Y=580), V1 (center X=300), V2 (center X=700)
+    this.cameras = [
+      new CameraNode(1, 300, 250, 'CAM-1 (NW Junction)'),
+      new CameraNode(2, 700, 250, 'CAM-2 (NE Junction)'),
+      new CameraNode(3, 300, 580, 'CAM-3 (SW Junction)'),
+      new CameraNode(4, 700, 580, 'CAM-4 (SE Junction)')
+    ];
   }
 
   initObstacles() {
@@ -527,6 +677,9 @@ class LiFiDigitalTwin {
   // ==========================================================================
 
   isPathBlocked(p1, p2) {
+    if (this.activeSolution === 'load-balance' || this.activeSolution === 'solution-1') {
+      return false; // Zero obstacles in Solution 1
+    }
     // 1. Check against stationary bookshelves and pillars
     for (const obs of this.stationaryObstacles) {
       if (MathUtils.lineIntersectsRect(p1, p2, obs.rect)) return true;
@@ -541,6 +694,9 @@ class LiFiDigitalTwin {
   }
 
   isPathThreatened(p1, p2) {
+    if (this.activeSolution === 'load-balance' || this.activeSolution === 'solution-1') {
+      return false; // Zero obstacles / warning zones in Solution 1
+    }
     if (!this.showZones) return false;
     for (const obs of this.obstacles) {
       const poly = obs.getWarningZonePolygon();
@@ -584,6 +740,740 @@ class LiFiDigitalTwin {
     }
 
     return null;
+  }
+
+  findOptimumBackupAp(user, excludeAp, obstacle, rayStart, rayEnd) {
+    const candidates = [];
+
+    for (const ap of this.aps) {
+      if (ap === excludeAp) continue;
+      if (!ap.enabled) continue;
+
+      // The path to this candidate AP must NOT be intersected by the obstacle's forward trajectory
+      const rayIntersectsCandidate = MathUtils.lineIntersectsLine(rayStart, rayEnd, user.pos, ap.pos);
+      if (rayIntersectsCandidate) continue;
+
+      // Must not be physically occluded by obstacle right now
+      if (MathUtils.lineIntersectsRect(user.pos, ap.pos, obstacle.rect)) continue;
+
+      // Score candidates: prioritize available capacity, then lowest load, then shortest distance
+      candidates.push({
+        ap,
+        dist: ap.distanceTo(user.pos),
+        load: ap.load,
+        hasRoom: ap.load < ap.maxCapacity
+      });
+    }
+
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => {
+        if (a.hasRoom !== b.hasRoom) return a.hasRoom ? -1 : 1;
+        if (a.load !== b.load) return a.load - b.load;
+        return a.dist - b.dist;
+      });
+      return candidates[0].ap;
+    }
+
+    // Fallback: any enabled AP not excluded
+    const fallbacks = this.aps.filter(ap => ap !== excludeAp && ap.enabled);
+    if (fallbacks.length > 0) {
+      fallbacks.sort((a, b) => (a.load < a.maxCapacity ? -1 : 1) || a.load - b.load || a.distanceTo(user.pos) - b.distanceTo(user.pos));
+      return fallbacks[0];
+    }
+    return null;
+  }
+
+  // ==========================================================================
+  // SOLUTION 2: PREDICTIVE CAMERA SENSING & PROACTIVE HANDOVER SYSTEM
+  // ==========================================================================
+
+  updatePredictiveCameraSystem(speedFactor = 1.0) {
+    // 1. Update all camera tracking turrets and calculate dynamic obstacle coordinates & trajectories
+    if (this.cameras) {
+      this.cameras.forEach(cam => cam.update(this.obstacles, speedFactor));
+    }
+
+    // 2. Decrement timers and smooth transitions
+    this.users.forEach(user => {
+      if (user.handoverCooldown > 0) user.handoverCooldown--;
+      if (user.fadeProgress < 1.0) user.fadeProgress = Math.min(1.0, user.fadeProgress + 0.05);
+      if (user.transitionProgress < 1.0) user.transitionProgress = Math.min(1.0, user.transitionProgress + 0.05);
+    });
+
+    // 3. Core Physics & Trajectory Prediction
+    this.obstacles.forEach(obs => {
+      const ocx = obs.x + obs.w / 2;
+      const ocy = obs.y + obs.h / 2;
+
+      // CANCELLATION 1: If obstacle is stopped, cancel any queued handovers immediately!
+      if (obs.isStopped) {
+        this.users.forEach(user => {
+          if (user.isQueued && user.queuedObstacle === obs) {
+            this.logEvent(
+              `[HANDOVER CANCELED] Obstacle #${obs.id} stopped before interruption! Handover canceled; User #U${user.id} original connection to AP-${user.currentAp.id + 1} preserved intact.`,
+              'system-info'
+            );
+            user.isQueued = false;
+            user.queuedTargetAp = null;
+            user.queuedObstacle = null;
+            user.predictedInterceptPoint = null;
+            user.predictedInterceptDistance = 0;
+            user.threatTimer = 0;
+            user.threatenedAp = null;
+          }
+        });
+        return;
+      }
+
+      // Compute forward trajectory ray: from obstacle center along velocity direction
+      const forwardDist = 220; // 220px camera lookahead horizon
+      const rayStart = { x: ocx, y: ocy };
+      const rayEnd = {
+        x: ocx + Math.cos(obs.heading) * forwardDist,
+        y: ocy + Math.sin(obs.heading) * forwardDist
+      };
+
+      // Check against all active users
+      this.users.forEach(user => {
+        if (!user.currentAp) return;
+
+        const p1 = user.pos;
+        const p2 = user.currentAp.pos;
+
+        // Intersection point between obstacle forward trajectory and user's Li-Fi beam
+        const hit = MathUtils.getLineIntersectionPoint(rayStart, rayEnd, p1, p2);
+        const isPhysicallyColliding = MathUtils.lineIntersectsRect(p1, p2, obs.rect);
+
+        if (hit) {
+          const distToHit = MathUtils.distance(rayStart, hit);
+
+          // If obstacle is still approaching (d > 26px and not physically colliding):
+          // THE QUEUING SYSTEM: Queue user to the next most optimum Access Point before interruption!
+          if (distToHit > 26 && !isPhysicallyColliding) {
+            if (!user.isQueued || user.queuedObstacle !== obs) {
+              const targetAp = this.findOptimumBackupAp(user, user.currentAp, obs, rayStart, rayEnd);
+              if (targetAp) {
+                user.isQueued = true;
+                user.queuedTargetAp = targetAp;
+                user.queuedObstacle = obs;
+                user.predictedInterceptPoint = hit;
+                user.predictedInterceptDistance = distToHit;
+                user.threatTimer = 999;
+                user.threatenedAp = user.currentAp;
+                this.audio.playThreat();
+                this.logEvent(
+                  `[CAMERA PREDICT] Camera tracked Obstacle #${obs.id} at (${Math.round(ocx)}, ${Math.round(ocy)}). Interruption predicted for User #U${user.id} LoS! Queued to optimum AP-${targetAp.id + 1} (${targetAp.load}/${targetAp.maxCapacity}).`,
+                  'handover-proactive'
+                );
+              }
+            } else {
+              // Continuously update intercept point and remaining distance
+              user.predictedInterceptPoint = hit;
+              user.predictedInterceptDistance = distToHit;
+            }
+          } else {
+            // Obstacle reached intercept threshold (distToHit <= 26px) or is physically colliding!
+            // EXECUTION LOGIC: Automatically and instantly switch connection to queued optimum AP without delay!
+            if (user.isQueued && user.queuedTargetAp) {
+              const oldAp = user.currentAp;
+              const newAp = user.queuedTargetAp;
+
+              // Execute instant switch
+              const idx = oldAp.connectedUsers.indexOf(user);
+              if (idx !== -1) oldAp.connectedUsers.splice(idx, 1);
+              newAp.connectedUsers.push(user);
+
+              user.previousAp = oldAp;
+              user.currentAp = newAp;
+              user.fadeProgress = 1.0;
+              user.transitionProgress = 1.0;
+              user.isQueued = false;
+              user.queuedTargetAp = null;
+              user.queuedObstacle = null;
+              user.predictedInterceptPoint = null;
+              user.predictedInterceptDistance = 0;
+              user.threatTimer = 0;
+              user.threatenedAp = null;
+              user.isDropped = false;
+              user.failedAp = null;
+              user.handoverCooldown = 35;
+
+              this.stats.proactiveHandovers++;
+              this.stats.totalHandovers++;
+              this.audio.playHandover();
+              this.logEvent(
+                `[INSTANT HANDOVER EXECUTION] Obstacle #${obs.id} reached intercept! Automatically switched User #U${user.id}: AP-${oldAp.id + 1} → AP-${newAp.id + 1} (Zero Latency).`,
+                'handover-proactive'
+              );
+              this.updateUI();
+            } else if (isPhysicallyColliding && user.handoverCooldown === 0) {
+              // Direct cut fallback
+              const fallbackAp = this.findOptimumBackupAp(user, user.currentAp, obs, rayStart, rayEnd);
+              if (fallbackAp) {
+                const oldAp = user.currentAp;
+                const idx = oldAp.connectedUsers.indexOf(user);
+                if (idx !== -1) oldAp.connectedUsers.splice(idx, 1);
+                fallbackAp.connectedUsers.push(user);
+
+                user.previousAp = oldAp;
+                user.currentAp = fallbackAp;
+                user.isDropped = false;
+                user.failedAp = null;
+                user.threatTimer = 0;
+                user.handoverCooldown = 30;
+                this.stats.proactiveHandovers++;
+                this.stats.totalHandovers++;
+                this.audio.playHandover();
+                this.updateUI();
+              }
+            }
+          }
+        } else {
+          // CANCELLATION 2: Obstacle trajectory no longer intersects the beam!
+          // If the obstacle changes direction or diverts before causing interruption:
+          if (user.isQueued && user.queuedObstacle === obs && !isPhysicallyColliding) {
+            this.logEvent(
+              `[HANDOVER CANCELED] Obstacle #${obs.id} trajectory diverted away from beam! Queued handover canceled; User #U${user.id} original connection to AP-${user.currentAp.id + 1} preserved intact.`,
+              'system-info'
+            );
+            user.isQueued = false;
+            user.queuedTargetAp = null;
+            user.queuedObstacle = null;
+            user.predictedInterceptPoint = null;
+            user.predictedInterceptDistance = 0;
+            user.threatTimer = 0;
+            user.threatenedAp = null;
+          }
+        }
+      });
+    });
+
+    // Enforce capacity limits if any
+    this.enforceLoadBalancingLimits();
+  }
+
+  // ==========================================================================
+  // SOLUTION 3: DYNAMIC OPTICAL BEAM STEERING & CAMERA SENSING (ZERO HANDOVER)
+  // ==========================================================================
+
+  updateDynamicBeamSteering(speedFactor = 1.0) {
+    // 1. Update all camera tracking turrets to track moving obstacles
+    if (this.cameras) {
+      this.cameras.forEach(cam => cam.update(this.obstacles, speedFactor));
+    }
+
+    // 2. Clear any queueing or drop flags - original connection to AP remains 100% intact!
+    this.users.forEach(user => {
+      user.isQueued = false;
+      user.queuedTargetAp = null;
+      user.threatTimer = 0;
+      user.threatenedAp = null;
+      user.isDropped = false;
+      user.failedAp = null;
+    });
+
+    // 3. For each connected user, calculate obstacle proximity to the active Green Beam
+    this.users.forEach(user => {
+      if (!user.currentAp) return;
+
+      const ap = user.currentAp;
+      const p1 = { x: ap.x, y: ap.y };
+      const p2 = { x: user.x, y: user.y };
+
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.hypot(dx, dy);
+      if (len === 0) return;
+
+      const ux = dx / len;
+      const uy = dy / len;
+      const nx = -uy;
+      const ny = ux;
+
+      const midX = (p1.x + p2.x) / 2;
+      const midY = (p1.y + p2.y) / 2;
+
+      let closestDist = Infinity;
+      let closestSignedDperp = 0;
+      let threateningObstacle = null;
+      let maxProximityWeight = 0;
+
+      // Cameras track dynamically moving obstacles (Red Triangles)
+      for (const obs of this.obstacles) {
+        const ocx = obs.x + obs.w / 2;
+        const ocy = obs.y + obs.h / 2;
+
+        // Project obstacle center onto the AP-User line segment
+        const t = ((ocx - p1.x) * ux + (ocy - p1.y) * uy) / len;
+
+        // Only evaluate if obstacle is along the span between AP and user
+        if (t >= 0.04 && t <= 0.96) {
+          const projX = p1.x + t * len * ux;
+          const projY = p1.y + t * len * uy;
+          const distToProj = Math.hypot(ocx - projX, ocy - projY);
+          const signedDperp = (ocx - p1.x) * nx + (ocy - p1.y) * ny;
+
+          const steerThreshold = 80;
+          if (distToProj < steerThreshold && distToProj < closestDist) {
+            closestDist = distToProj;
+            closestSignedDperp = signedDperp;
+            threateningObstacle = obs;
+            const norm = 1.0 - (distToProj / steerThreshold);
+            maxProximityWeight = norm * norm * (3 - 2 * norm); // Smooth cubic ease
+          }
+        }
+      }
+
+      if (threateningObstacle && maxProximityWeight > 0.01) {
+        // The active Green Beam must dynamically bend/arc around the obstacle's coordinates
+        // using a Quadratic Bezier Curve. Original AP connection remains completely intact!
+        const side = closestSignedDperp >= 0 ? -1 : 1;
+        
+        // Target control point displacement (up to 95px arc at peak approach)
+        const targetArc = side * (38 + 58 * maxProximityWeight);
+        
+        // Smooth interpolation to curve gracefully
+        user.currentCurvature += (targetArc - user.currentCurvature) * 0.22;
+        user.isBeingSteered = true;
+        user.steeringObstacle = threateningObstacle;
+        user.clearanceDistance = Math.max(14, closestDist);
+
+        // Control point of the Quadratic Bezier Curve
+        user.steerCpX = midX + user.currentCurvature * nx;
+        user.steerCpY = midY + user.currentCurvature * ny;
+
+        // Compute angular deflection and SLM phase shift
+        const deflection = Math.atan2(Math.abs(user.currentCurvature), len / 2) * (180 / Math.PI);
+        user.deflectionAngle = deflection;
+        user.activePhaseShift = deflection * 2.45;
+      } else {
+        // Smoothly straighten beam back to line
+        user.currentCurvature += (0 - user.currentCurvature) * 0.18;
+        if (Math.abs(user.currentCurvature) < 0.3) {
+          user.currentCurvature = 0;
+          user.isBeingSteered = false;
+          user.activePhaseShift = 0;
+          user.deflectionAngle = 0;
+          user.clearanceDistance = 0;
+          user.steerCpX = midX;
+          user.steerCpY = midY;
+        } else {
+          user.steerCpX = midX + user.currentCurvature * nx;
+          user.steerCpY = midY + user.currentCurvature * ny;
+          const deflection = Math.atan2(Math.abs(user.currentCurvature), len / 2) * (180 / Math.PI);
+          user.deflectionAngle = deflection;
+          user.activePhaseShift = deflection * 2.45;
+        }
+      }
+    });
+
+    // 4. Update the SLM Data Overlay in the Right Panel
+    this.updateSLMDataOverlay();
+  }
+
+  updateSLMDataOverlay() {
+    let maxUser = null;
+    let maxShift = 0;
+
+    this.users.forEach(u => {
+      if (u.activePhaseShift > maxShift) {
+        maxShift = u.activePhaseShift;
+        maxUser = u;
+      }
+    });
+
+    const shiftEl = document.getElementById('slm-phase-shift-val');
+    const deflEl = document.getElementById('slm-deflection-val');
+    const clearEl = document.getElementById('slm-clearance-val');
+    const apEl = document.getElementById('slm-active-ap-val');
+    const userEl = document.getElementById('slm-target-user-val');
+    const badgeEl = document.getElementById('slm-status-badge');
+    const modeTextEl = document.getElementById('slm-mode-text');
+
+    if (maxUser && maxUser.isBeingSteered && maxShift > 1.0) {
+      const shiftDeg = maxUser.activePhaseShift;
+      const shiftRad = (shiftDeg * Math.PI / 180).toFixed(2);
+      if (shiftEl) shiftEl.textContent = `Δφ = ${shiftDeg.toFixed(1)}° (${shiftRad} rad)`;
+      if (deflEl) deflEl.textContent = `+${maxUser.deflectionAngle.toFixed(1)}°`;
+      if (clearEl) clearEl.textContent = `${maxUser.clearanceDistance.toFixed(1)} px`;
+      if (apEl) apEl.textContent = `AP-${maxUser.currentAp.id + 1}`;
+      if (userEl) userEl.textContent = `User #U${maxUser.id}`;
+      if (badgeEl) {
+        badgeEl.textContent = 'SLM: STEERING ACTIVE';
+        badgeEl.className = 'text-xs font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse';
+      }
+      if (modeTextEl) modeTextEl.textContent = 'BEZIER CURVED ARC';
+    } else {
+      if (shiftEl) shiftEl.textContent = 'Δφ = 0.0° (0.00 rad)';
+      if (deflEl) deflEl.textContent = '0.0°';
+      if (clearEl) clearEl.textContent = 'Clear LoS';
+      if (badgeEl) {
+        badgeEl.textContent = 'SLM: MONITORING';
+        badgeEl.className = 'text-xs font-mono font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20';
+      }
+      if (modeTextEl) modeTextEl.textContent = 'ZERO HANDOVER';
+    }
+  }
+
+  // ==========================================================================
+  // SOLUTION 4: COMPLETE CONGESTION & WI-FI FALLBACK LOGIC
+  // ==========================================================================
+
+  updateFailSafeRecovery(speedFactor = 1.0) {
+    // 1. Update all camera tracking turrets
+    if (this.cameras) {
+      this.cameras.forEach(cam => cam.update(this.obstacles, speedFactor));
+    }
+
+    // 2. Continuous Polling: Check all active Li-Fi users for obstacle occlusion
+    this.users.forEach(user => {
+      if (user.currentAp && !user.isWifiFallback) {
+        const ap = user.currentAp;
+        const p1 = { x: ap.x, y: ap.y };
+        const p2 = { x: user.x, y: user.y };
+
+        // Check if any obstacle intersects the line segment between AP and user
+        let isOccluded = false;
+        for (const obs of this.obstacles) {
+          if (MathUtils.lineIntersectsRect(p1, p2, obs.rect)) {
+            isOccluded = true;
+            break;
+          }
+        }
+
+        if (isOccluded) {
+          // Failure condition check:
+          // A user's active connection is about to be blocked by an obstacle, BUT:
+          // 1. All other APs are at maximum user capacity, OR
+          // 2. Obstacles block all possible geometric paths to alternative APs.
+          const viableAp = this.findViableAlternativeAp(user, ap);
+
+          if (!viableAp) {
+            // Failure Condition MET -> Temporarily switch user to backup Wi-Fi network!
+            user.isWifiFallback = true;
+            user.wifiFallbackTimer = Date.now();
+            user.assignedApBeforeWifi = ap;
+            ap.removeUser(user);
+            user.currentAp = null;
+            this.audio.playThreat();
+            this.logEvent(
+              `[WI-FI FALLBACK] User #U${user.id} optical link blocked; all alternate APs saturated or obstructed! Routed to central Wi-Fi backup (thin grey line).`,
+              'threat'
+            );
+          } else {
+            // Alternative AP is available with capacity & clear LoS -> normal handover
+            ap.removeUser(user);
+            viableAp.addUser(user);
+            user.previousAp = ap;
+            user.currentAp = viableAp;
+            user.transitionProgress = 0.0;
+            this.audio.playHandover();
+          }
+        }
+      }
+    });
+
+    // 3. CONTINUOUS SELF-HEALING RECONNECTION (60 FPS POLLING):
+    // The exact millisecond an Access Point's capacity frees up or an obstacle moves out of the way,
+    // the system instantly drops the Wi-Fi fallback and reconnects the user to the Li-Fi Access Point!
+    this.users.forEach(user => {
+      if (user.isWifiFallback) {
+        let bestCandidate = null;
+        let bestDist = Infinity;
+
+        for (const candidateAp of this.aps) {
+          if (!candidateAp.enabled) continue;
+          if (candidateAp.load >= candidateAp.maxCapacity) continue;
+
+          // Check if path from candidateAp to user is clear
+          const p1 = { x: candidateAp.x, y: candidateAp.y };
+          const p2 = { x: user.x, y: user.y };
+
+          let hasObstacle = false;
+          for (const obs of this.obstacles) {
+            if (MathUtils.lineIntersectsRect(p1, p2, obs.rect)) {
+              hasObstacle = true;
+              break;
+            }
+          }
+
+          if (!hasObstacle) {
+            const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+            if (d < bestDist) {
+              bestDist = d;
+              bestCandidate = candidateAp;
+            }
+          }
+        }
+
+        if (bestCandidate) {
+          // INSTANT SELF-HEALING RESTORATION!
+          user.isWifiFallback = false;
+          user.currentAp = bestCandidate;
+          bestCandidate.addUser(user);
+          user.transitionProgress = 0.0;
+          this.audio.playHandover();
+          this.logEvent(
+            `[SELF-HEALING RESTORED] User #U${user.id} clear optical LoS detected at AP-${bestCandidate.id + 1} (${bestCandidate.load}/${bestCandidate.maxCapacity}). Dropped Wi-Fi fallback; solid Green Li-Fi beam restored!`,
+            'handover-proactive'
+          );
+        }
+      }
+    });
+
+    // 4. Update the Network Connection Status panel
+    this.updateNetworkStatusPanel();
+  }
+
+  findViableAlternativeAp(user, currentAp) {
+    let bestAp = null;
+    let bestDist = Infinity;
+
+    for (const ap of this.aps) {
+      if (ap === currentAp || !ap.enabled) continue;
+      // Must have capacity
+      if (ap.load >= ap.maxCapacity) continue;
+
+      // Must not be occluded by any obstacle
+      const p1 = { x: ap.x, y: ap.y };
+      const p2 = { x: user.x, y: user.y };
+      let occluded = false;
+      for (const obs of this.obstacles) {
+        if (MathUtils.lineIntersectsRect(p1, p2, obs.rect)) {
+          occluded = true;
+          break;
+        }
+      }
+
+      if (!occluded) {
+        const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+        if (d < bestDist) {
+          bestDist = d;
+          bestAp = ap;
+        }
+      }
+    }
+
+    return bestAp;
+  }
+
+  updateNetworkStatusPanel() {
+    const wifiCount = this.users.filter(u => u.isWifiFallback).length;
+    const lifiCount = this.users.filter(u => !u.isWifiFallback && u.currentAp).length;
+    const totalUsers = this.users.length;
+
+    const wifiEl = document.getElementById('stat-wifi-fallback-count');
+    const lifiEl = document.getElementById('stat-lifi-primary-count');
+    const badgeEl = document.getElementById('network-status-badge');
+    const pillEl = document.getElementById('wifi-queue-pill');
+    const barLiFi = document.getElementById('bar-lifi-active');
+    const barWiFi = document.getElementById('bar-wifi-fallback');
+
+    if (wifiEl) wifiEl.textContent = String(wifiCount);
+    if (lifiEl) lifiEl.textContent = String(lifiCount);
+
+    if (barLiFi && barWiFi) {
+      const lifiPct = Math.round((lifiCount / totalUsers) * 100);
+      const wifiPct = 100 - lifiPct;
+      barLiFi.style.width = `${lifiPct}%`;
+      barWiFi.style.width = `${wifiPct}%`;
+    }
+
+    if (badgeEl && pillEl) {
+      if (wifiCount > 0) {
+        badgeEl.textContent = `WI-FI FALLBACK ACTIVE (${wifiCount})`;
+        badgeEl.className = 'text-xs font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse';
+        pillEl.textContent = `${wifiCount} USERS ON RF`;
+        pillEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30';
+      } else {
+        badgeEl.textContent = 'ALL ON LI-FI (100%)';
+        badgeEl.className = 'text-xs font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+        pillEl.textContent = 'OPTICAL PRIMARY';
+        pillEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+      }
+    }
+
+    // Render AP meters into #ap-meters-container-sol4
+    const metersContainer = document.getElementById('ap-meters-container-sol4');
+    if (metersContainer) {
+      let html = '';
+      let totalCapacity = 0;
+      let totalAssigned = 0;
+
+      this.aps.forEach(ap => {
+        if (ap.enabled) {
+          totalCapacity += ap.maxCapacity;
+          totalAssigned += ap.load;
+        }
+        const pct = ap.enabled ? Math.min(100, Math.round((ap.load / ap.maxCapacity) * 100)) : 0;
+
+        let barColor = 'bg-blue-600';
+        if (!ap.enabled) barColor = 'bg-slate-500';
+        else if (ap.load >= ap.maxCapacity) barColor = 'bg-red-500 animate-pulse';
+        else if (ap.load === ap.maxCapacity - 1) barColor = 'bg-amber-500';
+
+        const statusText = ap.enabled ? `${ap.load}/${ap.maxCapacity}` : 'OFFLINE';
+
+        html += `
+          <div class="p-2 rounded-lg border ${ap.enabled ? 'border-slate-200 dark:border-slate-700/60 bg-slate-100/60 dark:bg-slate-800/40' : 'border-red-500/30 bg-red-500/5'}">
+            <div class="flex items-center justify-between text-[11px] mb-1">
+              <span class="font-bold text-slate-700 dark:text-slate-200 flex items-center space-x-1">
+                <span class="w-1.5 h-1.5 rounded-full ${ap.enabled ? 'bg-emerald-500' : 'bg-red-500'}"></span>
+                <span>AP-${ap.id + 1}</span>
+              </span>
+              <span class="font-mono text-[10px] ${ap.enabled ? (ap.load >= ap.maxCapacity ? 'text-red-500 font-bold' : 'text-slate-500') : 'text-red-400 font-bold'}">${statusText}</span>
+            </div>
+            <div class="w-full bg-slate-200 dark:bg-slate-700/60 rounded-full h-1.5 overflow-hidden">
+              <div class="${barColor} h-1.5 rounded-full transition-all duration-300" style="width: ${pct}%"></div>
+            </div>
+          </div>
+        `;
+      });
+
+      metersContainer.innerHTML = html;
+
+      const satEl = document.getElementById('stat-network-saturation-sol4');
+      if (satEl && totalCapacity > 0) {
+        const satPct = Math.round((totalAssigned / totalCapacity) * 100);
+        satEl.textContent = `${satPct}% Saturated`;
+      }
+    }
+  }
+
+  drawWifiRouter(ctx, isDark) {
+    const rx = 500;
+    const ry = 415;
+
+    ctx.save();
+
+    // 1. Concentric radio wave broadcast pulses
+    const pulseCount = 3;
+    const t = (Date.now() % 2400) / 2400;
+    for (let i = 0; i < pulseCount; i++) {
+      const p = (t + i / pulseCount) % 1;
+      const radius = 22 + p * 55;
+      const alpha = (1 - p) * 0.35;
+      ctx.strokeStyle = isDark ? `rgba(245, 158, 11, ${alpha})` : `rgba(217, 119, 6, ${alpha})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(rx, ry, radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // 2. Base Station Hub Body
+    ctx.fillStyle = isDark ? '#0f172a' : '#ffffff';
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#f59e0b';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.roundRect(rx - 28, ry - 16, 56, 32, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    // Dual Antennas
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(rx - 16, ry - 16);
+    ctx.lineTo(rx - 26, ry - 32);
+    ctx.moveTo(rx + 16, ry - 16);
+    ctx.lineTo(rx + 26, ry - 32);
+    ctx.stroke();
+
+    // Antenna Tips
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(rx - 26, ry - 32, 2.5, 0, Math.PI * 2);
+    ctx.arc(rx + 26, ry - 32, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Central Status Diode
+    const wifiActive = this.users.some(u => u.isWifiFallback);
+    ctx.fillStyle = wifiActive ? '#f59e0b' : '#38bdf8';
+    ctx.shadowColor = wifiActive ? '#f59e0b' : '#38bdf8';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(rx, ry, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Router Label Pill
+    ctx.shadowBlur = 0;
+    ctx.font = 'bold 8px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = isDark ? '#cbd5e1' : '#475569';
+    ctx.fillText('BACKUP WI-FI (RF)', rx, ry + 26);
+
+    ctx.restore();
+  }
+
+  forceCongestion() {
+    this.isCongestionForced = !this.isCongestionForced;
+    const btnText = document.getElementById('btn-force-congestion-text');
+    const panelBtn = document.getElementById('btn-panel-force-congestion');
+
+    if (this.isCongestionForced) {
+      // Drop AP Capacity to 3 (26 users into 18 slots -> guaranteed saturation!)
+      this.setCapacityLimit(3);
+      const sel = document.getElementById('select-capacity');
+      if (sel) sel.value = '3';
+
+      // Spawn extra moving obstacles across walkways
+      if (this.obstacles.length <= 6) {
+        this.obstacles.push(
+          new MovingObstacle(7, 400, 235, 32, 30, 2.5, 0, 'horizontal', 85),
+          new MovingObstacle(8, 480, 565, 32, 30, -2.5, 0, 'horizontal', 90),
+          new MovingObstacle(9, 285, 350, 30, 32, 0, 2.4, 'vertical', 85),
+          new MovingObstacle(10, 685, 450, 30, 32, 0, -2.4, 'vertical', 85)
+        );
+      }
+
+      if (btnText) btnText.textContent = 'Relieve Congestion';
+      if (panelBtn) panelBtn.innerHTML = '<i data-lucide="sparkles" class="w-3.5 h-3.5"></i><span>Relieve Congestion</span>';
+
+      this.logEvent(
+        '[FORCE CONGESTION ACTIVATED] AP capacity lowered to 3 users (Full Saturation) & extra obstacles deployed! Multiple optical paths blocked, forcing users onto Wi-Fi Fallback.',
+        'threat'
+      );
+    } else {
+      // Relieve Congestion: Expand AP capacity to 5
+      this.setCapacityLimit(5);
+      const sel = document.getElementById('select-capacity');
+      if (sel) sel.value = '5';
+
+      // Remove extra obstacles
+      if (this.obstacles.length > 6) {
+        this.obstacles = this.obstacles.slice(0, 6);
+      }
+
+      if (btnText) btnText.textContent = 'Force Congestion';
+      if (panelBtn) panelBtn.innerHTML = '<i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i><span>Force Congestion</span>';
+
+      this.logEvent(
+        '[CONGESTION RELIEVED] Capacity restored to 5 users/AP. Watch continuous self-healing instantly restore all users back to Green Li-Fi beams!',
+        'system-info'
+      );
+    }
+
+    lucide.createIcons();
+    this.updateUI();
+  }
+
+  selfHealingRecovery() {
+    this.isCongestionForced = false;
+    this.setCapacityLimit(5);
+    const sel = document.getElementById('select-capacity');
+    if (sel) sel.value = '5';
+
+    if (this.obstacles.length > 6) {
+      this.obstacles = this.obstacles.slice(0, 6);
+    }
+
+    const btnText = document.getElementById('btn-force-congestion-text');
+    if (btnText) btnText.textContent = 'Force Congestion';
+
+    this.logEvent('[SELF-HEALING RECOVERY TRIGGERED] Expanding AP capacity and clearing path blockages.', 'system-info');
+    this.updateUI();
   }
 
   // ==========================================================================
@@ -693,6 +1583,7 @@ class LiFiDigitalTwin {
   }
 
   enforceLoadBalancingLimits() {
+    let rebalancedAny = false;
     this.aps.forEach(ap => {
       while (ap.load > ap.maxCapacity) {
         // Find furthest user to reallocate
@@ -705,19 +1596,88 @@ class LiFiDigitalTwin {
           const idx = ap.connectedUsers.indexOf(excessUser);
           if (idx !== -1) ap.connectedUsers.splice(idx, 1);
           candidate.connectedUsers.push(excessUser);
+
+          // Animate connection smoothly swinging from current AP to new candidate AP
+          excessUser.previousAp = ap;
+          excessUser.transitionProgress = 0.0;
           excessUser.currentAp = candidate;
+          excessUser.isDropped = false;
+          excessUser.failedAp = null;
+          excessUser.overloadTimer = 0;
+
           this.stats.loadRedirects++;
           this.stats.totalHandovers++;
+          rebalancedAny = true;
+          this.audio.playHandover();
 
           this.logEvent(
             `[LOAD BALANCING] AP-${ap.id + 1} capacity exceeded! Redirected User #U${excessUser.id} to AP-${candidate.id + 1} (${candidate.load}/${candidate.maxCapacity})`,
             'load-balance'
           );
         } else {
+          // Hard limit reached! All APs are at capacity limit
+          const idx = ap.connectedUsers.indexOf(excessUser);
+          if (idx !== -1) ap.connectedUsers.splice(idx, 1);
+
+          if (this.activeSolution === 'fail-safe' || this.activeSolution === 'solution-4') {
+            excessUser.isWifiFallback = true;
+            excessUser.assignedApBeforeWifi = ap;
+            excessUser.previousAp = ap;
+            excessUser.currentAp = null;
+            excessUser.isDropped = false;
+            this.stats.totalHandovers++;
+            this.audio.playThreat();
+            this.logEvent(
+              `[WI-FI FALLBACK] User #U${excessUser.id} shifted to central Wi-Fi backup due to complete AP saturation.`,
+              'threat'
+            );
+            rebalancedAny = true;
+            break;
+          }
+
+          excessUser.failedAp = ap;
+          excessUser.previousAp = ap;
+          excessUser.currentAp = null;
+          excessUser.isDropped = true;
+          this.stats.physicalDrops++;
+          rebalancedAny = true;
+          this.audio.playDrop();
+
+          this.logEvent(
+            `[HARD LIMIT REACHED] User #U${excessUser.id} rejected! All available Access Points saturated at max capacity (${this.defaultCapacity} users/AP).`,
+            'drop-failure'
+          );
           break; // Cannot reallocate further without dropping
         }
       }
     });
+
+    if (rebalancedAny) {
+      this.updateUI();
+    }
+  }
+
+  reconnectDroppedUsers() {
+    let reconnectedAny = false;
+    this.users.forEach(user => {
+      if (user.isDropped || !user.currentAp) {
+        const candidate = this.findCandidateAp(user, null);
+        if (candidate !== null) {
+          candidate.connectedUsers.push(user);
+          user.previousAp = user.failedAp || candidate;
+          user.transitionProgress = 0.0;
+          user.currentAp = candidate;
+          user.isDropped = false;
+          user.failedAp = null;
+          user.overloadTimer = 0;
+          reconnectedAny = true;
+        }
+      }
+    });
+    if (reconnectedAny) {
+      this.audio.playHandover();
+      this.updateUI();
+    }
   }
 
   // ==========================================================================
@@ -725,8 +1685,8 @@ class LiFiDigitalTwin {
   // ==========================================================================
 
   triggerAP2Overload() {
-    const ap2 = this.aps[1]; // AP-2 (Center Top)
-    this.logEvent(`[BURST SIMULATION] Inducing sudden burst surge on AP-2...`, 'load-balance');
+    const ap2 = this.aps[1]; // AP-2 (North Central)
+    this.logEvent(`[BURST SIMULATION] Inducing sudden overload burst surge on AP-2...`, 'load-balance');
     
     // Select users from Table 3 (Center Hub) and force them into AP-2
     const hubUsers = this.users.filter(u => u.tableId === 3);
@@ -737,36 +1697,93 @@ class LiFiDigitalTwin {
       }
       if (!ap2.connectedUsers.includes(u)) {
         ap2.connectedUsers.push(u);
-        u.currentAp = ap2;
       }
+      u.previousAp = u.currentAp || ap2;
+      u.currentAp = ap2;
+      u.isDropped = false;
+      u.failedAp = null;
+      u.overloadTimer = 45; // Visual red overload burst warning for ~0.75s
+      u.transitionProgress = 0.0;
     });
 
-    // Now enforce load balancing immediately to showcase the dynamic cascade
+    this.audio.playThreat();
+    this.updateUI();
+
+    // After 700ms, trigger load balancing to dynamically redirect excess users to nearest available APs
     setTimeout(() => {
       this.enforceLoadBalancingLimits();
       this.updateUI();
-    }, 400);
+    }, 700);
   }
 
   triggerRebalanceAll() {
     this.logEvent(`[OPTIMIZATION] Calculating optimal network load distribution across all 6 APs...`, 'system-info');
+    this.aps.forEach(ap => ap.connectedUsers = []);
+    this.users.forEach(u => {
+      u.previousAp = u.currentAp || u.failedAp;
+      u.transitionProgress = 0.0;
+      u.currentAp = null;
+      u.isDropped = false;
+      u.failedAp = null;
+      u.threatTimer = 0;
+      u.overloadTimer = 0;
+    });
     this.performInitialAssociation();
     this.updateUI();
+    this.audio.playHandover();
   }
 
   setCapacityLimit(newCap) {
     this.defaultCapacity = parseInt(newCap, 10);
     this.aps.forEach(ap => ap.maxCapacity = this.defaultCapacity);
+    this.reconnectDroppedUsers();
     this.enforceLoadBalancingLimits();
     this.logEvent(`[CAPACITY UPDATE] Access Point capacity ceiling updated to ${newCap} users/AP.`, 'system-info');
     this.updateUI();
   }
 
   triggerFastCrossing() {
-    const obs = this.obstacles[0];
-    obs.vx = 4.2;
-    this.logEvent(`[HAZARD EVENT] Accelerated Patron #1 traversing aisle at high velocity (4.2 px/frame).`, 'handover-proactive');
-    setTimeout(() => { obs.vx = 1.8; }, 4000);
+    this.accelerateObstacle(1);
+  }
+
+  accelerateObstacle(id = 1) {
+    const obs = this.obstacles.find(o => o.id === id) || this.obstacles[0];
+    if (!obs) return;
+    if (obs.isStopped) obs.toggleStop();
+    const oldVx = obs.vx;
+    const oldVy = obs.vy;
+    obs.vx = (obs.vx !== 0 ? Math.sign(obs.vx) : 1) * 4.2;
+    obs.vy = (obs.vy !== 0 ? Math.sign(obs.vy) : 1) * (obs.laneType === 'vertical' ? 4.2 : 0);
+    this.logEvent(`[ACCELERATE] Obstacle #${obs.id} velocity boosted to (${obs.vx.toFixed(1)}, ${obs.vy.toFixed(1)}). Watch imminent LoS queuing and instant execution!`, 'handover-proactive');
+    setTimeout(() => {
+      obs.vx = obs.baseVx;
+      obs.vy = obs.baseVy;
+    }, 3500);
+  }
+
+  invertObstacleTrajectories() {
+    this.obstacles.forEach(obs => {
+      obs.invertDirection();
+    });
+    this.logEvent(`[TRAJECTORY INVERTED] Obstacle trajectories reversed! Any queued handover whose trajectory no longer threatens the beam is instantly canceled.`, 'system-info');
+    this.updateUI();
+  }
+
+  toggleStopObstacle(id = 1) {
+    const obs = this.obstacles.find(o => o.id === id) || this.obstacles[0];
+    if (!obs) return;
+    obs.toggleStop();
+    const stopBtnText = document.getElementById('btn-panel-stop-text');
+    if (stopBtnText) {
+      stopBtnText.textContent = obs.isStopped ? 'Resume Obstacle' : 'Stop Obstacle';
+    }
+    this.logEvent(
+      obs.isStopped
+        ? `[OBSTACLE HALTED] Obstacle #${obs.id} stopped! Queued handover canceled; original connection to AP preserved intact.`
+        : `[OBSTACLE RESUMED] Obstacle #${obs.id} resumed movement at (${obs.vx.toFixed(1)}, ${obs.vy.toFixed(1)}).`,
+      obs.isStopped ? 'system-info' : 'handover-proactive'
+    );
+    this.updateUI();
   }
 
   triggerSlowMotion() {
@@ -776,6 +1793,54 @@ class LiFiDigitalTwin {
     if (speedSlider) speedSlider.value = 0.25;
     if (speedLabel) speedLabel.textContent = '0.25x';
     this.logEvent(`[SLOW-MOTION] Simulation scaled to 0.25x speed for frame-by-frame beam inspection.`, 'system-info');
+  }
+
+  toggleAP(apIndex) {
+    const ap = this.aps[apIndex];
+    if (!ap) return;
+    ap.enabled = !ap.enabled;
+
+    if (!ap.enabled) {
+      this.logEvent(`[AP TOGGLE] AP-${ap.id + 1} switched OFFLINE. Evicting users to neighbor APs...`, 'drop-failure');
+      const evictUsers = [...ap.connectedUsers];
+      ap.connectedUsers = [];
+
+      evictUsers.forEach(user => {
+        user.currentAp = null;
+        const candidate = this.findCandidateAp(user, ap);
+        if (candidate) {
+          candidate.connectedUsers.push(user);
+          user.currentAp = candidate;
+          user.previousAp = ap;
+          user.fadeProgress = 0.0;
+          this.stats.loadRedirects++;
+          this.stats.totalHandovers++;
+        } else {
+          user.isDropped = true;
+          user.failedAp = ap;
+          this.stats.physicalDrops++;
+        }
+      });
+      this.audio.playDrop();
+    } else {
+      this.logEvent(`[AP TOGGLE] AP-${ap.id + 1} restored ONLINE. Rebalancing network...`, 'system-info');
+      this.audio.playTone(587.33, 'sine', 0.1, 0.05);
+      // Try restoring dropped users
+      this.users.forEach(user => {
+        if (!user.currentAp) {
+          const candidate = this.findCandidateAp(user, null);
+          if (candidate) {
+            candidate.connectedUsers.push(user);
+            user.currentAp = candidate;
+            user.isDropped = false;
+            user.failedAp = null;
+          }
+        }
+      });
+      this.enforceLoadBalancingLimits();
+    }
+
+    this.updateUI();
   }
 
   toggleProactiveVsReactive() {
@@ -793,6 +1858,7 @@ class LiFiDigitalTwin {
     this.stats.physicalDrops = 0;
     this.stats.totalHandovers = 0;
     this.stats.simTimeSeconds = 0;
+    this.aps.forEach(ap => ap.enabled = true);
     this.initObstacles();
     this.performInitialAssociation();
     this.logEvent(`[SYSTEM RESET] Entity positions and network telemetry cleared.`, 'system-info');
@@ -802,7 +1868,11 @@ class LiFiDigitalTwin {
   stepForward() {
     if (!this.isPaused) return;
     this.updatePhysics(1.0);
-    this.updateBeamScheduling();
+    if (this.activeSolution === 'predictive' || this.activeSolution === 'solution-2') {
+      this.updatePredictiveCameraSystem(1.0);
+    } else {
+      this.updateBeamScheduling();
+    }
     this.render();
     this.updateUI();
   }
@@ -820,22 +1890,73 @@ class LiFiDigitalTwin {
     // 1. Draw Library Floor & Grid
     this.drawFloorPlan(ctx, isDark);
 
-    // 2. Draw Aisles & Walkways
+    // SOLUTION 1 VIEW: Load Balancing & Overload Redirection
+    // ONLY REMOVE THE OBSTACLES (No moving obstacles, no bookshelves, no pillars).
+    // KEEP THE TABLES AND LANES AND THE GRID AS IT WAS BEFORE.
+    if (this.activeSolution === 'load-balance' || this.activeSolution === 'solution-1') {
+      this.drawLanes(ctx, isDark);
+      this.drawTables(ctx, isDark);
+      this.drawLiFiBeams(ctx, isDark);
+      this.drawUsers(ctx, isDark);
+      this.drawAccessPoints(ctx, isDark);
+      return;
+    }
+
+    // SOLUTION 2 VIEW: Proactive Obstacle Sensing & Predictive Handover
+    // Displays Access Points (Blue circles), Users (green circles), predefined movement lanes,
+    // and Dynamically Moving Obstacles (Red Triangles).
+    // Visually place Camera icons/nodes at the intersections of the predefined lanes.
+    if (this.activeSolution === 'predictive' || this.activeSolution === 'solution-2') {
+      this.drawLanes(ctx, isDark);
+      this.drawTables(ctx, isDark);
+      this.drawCameraTracking(ctx, isDark);
+      this.drawLiFiBeams(ctx, isDark);
+      this.drawObstacles(ctx, isDark);
+      this.drawCameraNodes(ctx, isDark);
+      this.drawUsers(ctx, isDark);
+      this.drawAccessPoints(ctx, isDark);
+      return;
+    }
+
+    // SOLUTION 3 VIEW: Optical Beam Steering (Zero Handover)
+    // Displays Access Points (Blue circles), Users (green circles), predefined movement lanes,
+    // and Dynamically Moving Obstacles (Red Triangles - NO warning zones).
+    // Visually place Camera icons/nodes at the intersections of the predefined lanes.
+    if (this.activeSolution === 'beam-steering' || this.activeSolution === 'solution-3') {
+      this.drawLanes(ctx, isDark);
+      this.drawTables(ctx, isDark);
+      this.drawCameraTracking(ctx, isDark);
+      this.drawLiFiBeams(ctx, isDark);
+      this.drawObstacles(ctx, isDark);
+      this.drawCameraNodes(ctx, isDark);
+      this.drawUsers(ctx, isDark);
+      this.drawAccessPoints(ctx, isDark);
+      return;
+    }
+
+    // SOLUTION 4 VIEW: Complete Congestion & Wi-Fi Fallback (Occlusion Recovery)
+    // Displays Access Points (Blue circles), Users (green circles), predefined movement lanes,
+    // Central Wi-Fi Router node at (500, 415), Dynamically Moving Obstacles (Red Triangles),
+    // and Camera icons/nodes at lane intersections.
+    if (this.activeSolution === 'fail-safe' || this.activeSolution === 'solution-4') {
+      this.drawLanes(ctx, isDark);
+      this.drawTables(ctx, isDark);
+      this.drawCameraTracking(ctx, isDark);
+      this.drawWifiRouter(ctx, isDark);
+      this.drawLiFiBeams(ctx, isDark);
+      this.drawObstacles(ctx, isDark);
+      this.drawCameraNodes(ctx, isDark);
+      this.drawUsers(ctx, isDark);
+      this.drawAccessPoints(ctx, isDark);
+      return;
+    }
+
+    // Other Solutions: Draw full library environment with shelves, tables, lanes, and obstacles
     this.drawLanes(ctx, isDark);
-
-    // 3. Draw Study Tables & Perimeter Bookshelves
     this.drawTablesAndShelves(ctx, isDark);
-
-    // 4. Draw Li-Fi Optical Beams (Active Green, Threat Orange, Blocked Red)
     this.drawLiFiBeams(ctx, isDark);
-
-    // 5. Draw Obstacles & Predictive Warning Zones
     this.drawObstacles(ctx, isDark);
-
-    // 6. Draw Stationary Users
     this.drawUsers(ctx, isDark);
-
-    // 7. Draw Ceiling Access Points (Pulsing blue nodes & capacity counters)
     this.drawAccessPoints(ctx, isDark);
   }
 
@@ -891,8 +2012,8 @@ class LiFiDigitalTwin {
     });
   }
 
-  drawTablesAndShelves(ctx, isDark) {
-    // 1. Stationary Bookshelves & Pillars
+  drawShelvesAndPillars(ctx, isDark) {
+    // Stationary Bookshelves & Pillars (Obstacles)
     this.stationaryObstacles.forEach(obs => {
       if (obs.type === 'bookshelf') {
         ctx.fillStyle = isDark ? '#1c1917' : '#334155';
@@ -933,8 +2054,10 @@ class LiFiDigitalTwin {
         ctx.fillText('PILLAR', obs.x + obs.w / 2, obs.y + obs.h / 2 + 3);
       }
     });
+  }
 
-    // 2. Study Tables
+  drawTables(ctx, isDark) {
+    // 5 Library Study Tables
     this.tables.forEach(table => {
       ctx.fillStyle = isDark ? '#1a2234' : '#e2e8f0';
       ctx.fillRect(table.x, table.y, table.w, table.h);
@@ -950,9 +2073,241 @@ class LiFiDigitalTwin {
     });
   }
 
+  drawTablesAndShelves(ctx, isDark) {
+    this.drawShelvesAndPillars(ctx, isDark);
+    this.drawTables(ctx, isDark);
+  }
+
   drawLiFiBeams(ctx, isDark) {
     ctx.save();
 
+    const isSolution1 = (this.activeSolution === 'load-balance' || this.activeSolution === 'solution-1');
+
+    if (isSolution1) {
+      // SOLUTION 1 SPECIFIC BEAM ANIMATION:
+      // The only things that should be moving are the connections when overloading occurs.
+      // Green for active LoS, Red if testing hard limits or dropped.
+      this.users.forEach(user => {
+        // Progress animated connection switching
+        if (user.transitionProgress < 1.0) {
+          user.transitionProgress = Math.min(1.0, user.transitionProgress + 0.025 * (this.isPaused ? 0 : this.speedMultiplier));
+        }
+
+        if (user.overloadTimer > 0) {
+          user.overloadTimer--;
+        }
+
+        if (user.currentAp) {
+          const t = Math.min(1.0, user.transitionProgress);
+          // Ease in-out interpolation for natural swing
+          const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+
+          const srcX = (user.previousAp && t < 1.0)
+            ? user.previousAp.x + (user.currentAp.x - user.previousAp.x) * ease
+            : user.currentAp.x;
+          const srcY = (user.previousAp && t < 1.0)
+            ? user.previousAp.y + (user.currentAp.y - user.previousAp.y) * ease
+            : user.currentAp.y;
+
+          // Green for active, Red if testing overload burst
+          if (user.overloadTimer > 0) {
+            ctx.strokeStyle = '#ef4444';
+            ctx.shadowColor = '#ef4444';
+            ctx.shadowBlur = 10;
+            ctx.lineWidth = 4.5;
+          } else {
+            ctx.strokeStyle = isDark ? '#4ade80' : '#22c55e';
+            ctx.shadowColor = '#22c55e';
+            ctx.shadowBlur = isDark ? 8 : 4;
+            ctx.lineWidth = 3.5;
+          }
+
+          ctx.beginPath();
+          ctx.moveTo(srcX, srcY);
+          ctx.lineTo(user.x, user.y);
+          ctx.stroke();
+
+          // Animated sliding connection anchor node at ceiling during transition
+          if (t < 1.0 && user.previousAp) {
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = '#4ade80';
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.arc(srcX, srcY, 4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else if (user.isDropped && user.failedAp) {
+          // Hard limits testing: Red connection beam (rejected / dropped)
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 2.5;
+          ctx.shadowColor = '#ef4444';
+          ctx.shadowBlur = 6;
+          ctx.setLineDash([5, 4]);
+
+          ctx.beginPath();
+          ctx.moveTo(user.failedAp.x, user.failedAp.y);
+          ctx.lineTo(user.x, user.y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      });
+
+      ctx.restore();
+      return; // No particles or obstacle-induced beams in Solution 1
+    }
+
+    const isSolution2 = (this.activeSolution === 'predictive' || this.activeSolution === 'solution-2');
+
+    if (isSolution2) {
+      // SOLUTION 2 SPECIFIC BEAM RENDERING:
+      // Active LoS is bright Green.
+      // If user is queued (threatened by obstacle): original beam pulses glowing Orange,
+      // and target queued backup beam is previewed in Cyan.
+      // Upon execution, beam switches to new AP in Green instantly!
+      this.users.forEach(user => {
+        if (user.currentAp) {
+          if (user.isQueued) {
+            // Threatened Beam: Glowing pulsing Orange
+            const pulse = 0.65 + Math.sin(Date.now() * 0.015) * 0.35;
+            ctx.strokeStyle = `rgba(249, 115, 22, ${pulse})`;
+            ctx.lineWidth = 4.5;
+            ctx.shadowColor = '#f97316';
+            ctx.shadowBlur = 12;
+
+            ctx.beginPath();
+            ctx.moveTo(user.currentAp.x, user.currentAp.y);
+            ctx.lineTo(user.x, user.y);
+            ctx.stroke();
+          } else {
+            // Active Stable Connection: Solid Crisp Green
+            ctx.strokeStyle = isDark ? '#4ade80' : '#22c55e';
+            ctx.lineWidth = 3.5;
+            ctx.shadowColor = '#22c55e';
+            ctx.shadowBlur = isDark ? 8 : 4;
+
+            ctx.beginPath();
+            ctx.moveTo(user.currentAp.x, user.currentAp.y);
+            ctx.lineTo(user.x, user.y);
+            ctx.stroke();
+          }
+        } else if (user.isDropped && user.failedAp) {
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 2.5;
+          ctx.setLineDash([5, 4]);
+          ctx.beginPath();
+          ctx.moveTo(user.failedAp.x, user.failedAp.y);
+          ctx.lineTo(user.x, user.y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      });
+
+      ctx.restore();
+      return;
+    }
+
+    const isSolution3 = (this.activeSolution === 'beam-steering' || this.activeSolution === 'solution-3');
+    if (isSolution3) {
+      // SOLUTION 3 SPECIFIC BEAM RENDERING:
+      // Active Green Beams dynamically bend/arc around obstacle coordinates using a Quadratic Bezier Curve.
+      // Connection to original Access Point remains 100% intact with zero handover!
+      this.users.forEach(user => {
+        if (!user.currentAp) return;
+
+        const ap = user.currentAp;
+        const isCurved = user.isBeingSteered && user.steerCpX !== null && user.steerCpY !== null;
+
+        ctx.strokeStyle = isDark ? '#4ade80' : '#22c55e';
+        ctx.shadowColor = '#22c55e';
+        ctx.lineWidth = isCurved ? 4.5 : 3.5;
+        ctx.shadowBlur = isCurved ? 12 : (isDark ? 8 : 4);
+
+        ctx.beginPath();
+        ctx.moveTo(ap.x, ap.y);
+        if (isCurved) {
+          ctx.quadraticCurveTo(user.steerCpX, user.steerCpY, user.x, user.y);
+        } else {
+          ctx.lineTo(user.x, user.y);
+        }
+        ctx.stroke();
+
+        // If dynamically steered, render subtle optical diffraction wavefront envelope
+        if (isCurved && Math.abs(user.currentCurvature) > 8) {
+          ctx.strokeStyle = isDark ? 'rgba(74, 222, 128, 0.35)' : 'rgba(34, 197, 94, 0.4)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          ctx.moveTo(ap.x, ap.y);
+          ctx.quadraticCurveTo(user.steerCpX, user.steerCpY, user.x, user.y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Phase shift badge at curved control apex
+          ctx.fillStyle = isDark ? '#86efac' : '#15803d';
+          ctx.font = 'bold 9px "JetBrains Mono", monospace';
+          ctx.fillText(`Δφ:${Math.round(user.activePhaseShift)}°`, user.steerCpX + 6, user.steerCpY - 4);
+        }
+      });
+
+      ctx.restore();
+      return;
+    }
+
+    const isSolution4 = (this.activeSolution === 'fail-safe' || this.activeSolution === 'solution-4');
+    if (isSolution4) {
+      // SOLUTION 4 SPECIFIC BEAM RENDERING:
+      // Active Li-Fi users: solid Green beam to current AP.
+      // Wi-Fi Fallback users: thin GREY line to the central Wi-Fi Router at (500, 415),
+      // with subtle data pulses and "WI-FI RF" tag.
+      const wifiRouterPos = { x: 500, y: 415 };
+
+      this.users.forEach(user => {
+        if (user.isWifiFallback) {
+          // THIN GREY LINE to Wi-Fi Router
+          ctx.strokeStyle = isDark ? '#94a3b8' : '#64748b';
+          ctx.shadowColor = isDark ? '#94a3b8' : '#64748b';
+          ctx.shadowBlur = 4;
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 3]);
+
+          ctx.beginPath();
+          ctx.moveTo(user.x, user.y);
+          ctx.lineTo(wifiRouterPos.x, wifiRouterPos.y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Animated RF signal wave packet travelling along the line
+          const progress = (Date.now() * 0.0015 + user.id * 0.15) % 1.0;
+          const packetX = user.x + (wifiRouterPos.x - user.x) * progress;
+          const packetY = user.y + (wifiRouterPos.y - user.y) * progress;
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.arc(packetX, packetY, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Small tag near user
+          ctx.fillStyle = isDark ? '#cbd5e1' : '#475569';
+          ctx.font = 'bold 9px "JetBrains Mono", monospace';
+          ctx.fillText('WI-FI RF', (user.x + wifiRouterPos.x) / 2 - 15, (user.y + wifiRouterPos.y) / 2 - 4);
+        } else if (user.currentAp) {
+          // Solid Crisp Green Beam to AP
+          ctx.strokeStyle = isDark ? '#4ade80' : '#22c55e';
+          ctx.lineWidth = 3.5;
+          ctx.shadowColor = '#22c55e';
+          ctx.shadowBlur = isDark ? 8 : 4;
+
+          ctx.beginPath();
+          ctx.moveTo(user.currentAp.x, user.currentAp.y);
+          ctx.lineTo(user.x, user.y);
+          ctx.stroke();
+        }
+      });
+
+      ctx.restore();
+      return;
+    }
+
+    // OTHER SOLUTIONS: Original Multi-State Beams & Particles
     // 1. Thick Orange Pulsing Beams (Imminent Threat Handover in progress)
     this.users.forEach(user => {
       if (user.threatTimer > 0 && user.threatenedAp) {
@@ -1047,7 +2402,11 @@ class LiFiDigitalTwin {
   drawObstacles(ctx, isDark) {
     this.obstacles.forEach(obs => {
       // 1. Predictive Warning Zone (Detection Cone ahead of travel direction)
-      if (this.showZones) {
+      // In Solution 2 & Solution 3, NO warning cones attached to obstacles!
+      const isSolution2 = (this.activeSolution === 'predictive' || this.activeSolution === 'solution-2');
+      const isSolution3 = (this.activeSolution === 'beam-steering' || this.activeSolution === 'solution-3');
+      const isSolution4 = (this.activeSolution === 'fail-safe' || this.activeSolution === 'solution-4');
+      if (this.showZones && !isSolution2 && !isSolution3 && !isSolution4) {
         const poly = obs.getWarningZonePolygon();
         ctx.save();
         ctx.fillStyle = isDark ? 'rgba(245, 158, 11, 0.22)' : 'rgba(251, 191, 36, 0.25)';
@@ -1107,8 +2466,13 @@ class LiFiDigitalTwin {
       const radius = 8;
       ctx.save();
 
-      // Halo/glow if threatened or dropped
-      if (user.isDropped) {
+      // Halo/glow if threatened, dropped, or on Wi-Fi fallback
+      if (user.isWifiFallback) {
+        ctx.fillStyle = '#16a34a';
+        ctx.strokeStyle = '#f59e0b';
+        ctx.shadowColor = '#f59e0b';
+        ctx.shadowBlur = 6;
+      } else if (user.isDropped) {
         ctx.fillStyle = '#ef4444';
         ctx.strokeStyle = '#991b1b';
       } else if (user.threatTimer > 0) {
@@ -1139,6 +2503,48 @@ class LiFiDigitalTwin {
 
   drawAccessPoints(ctx, isDark) {
     this.aps.forEach(ap => {
+      if (!ap.enabled) {
+        // Disabled / Offline Access Point visual
+        ctx.save();
+        ctx.fillStyle = isDark ? '#1e293b' : '#cbd5e1';
+        ctx.strokeStyle = isDark ? '#ef4444' : '#dc2626';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(ap.x, ap.y, ap.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Strikethrough / X
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(ap.x - 7, ap.y - 7);
+        ctx.lineTo(ap.x + 7, ap.y + 7);
+        ctx.moveTo(ap.x + 7, ap.y - 7);
+        ctx.lineTo(ap.x - 7, ap.y + 7);
+        ctx.stroke();
+
+        // Offline Badge
+        const badgeText = `AP-${ap.id + 1} [OFFLINE]`;
+        ctx.font = 'bold 10px "JetBrains Mono", monospace';
+        const textWidth = ctx.measureText(badgeText).width;
+        const badgeW = textWidth + 12;
+        const badgeH = 18;
+        const badgeX = ap.x - badgeW / 2;
+        const badgeY = ap.y - ap.radius - 22;
+
+        ctx.fillStyle = '#475569';
+        ctx.beginPath();
+        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+        ctx.fill();
+
+        ctx.fillStyle = '#fca5a5';
+        ctx.textAlign = 'center';
+        ctx.fillText(badgeText, ap.x, badgeY + 12);
+        ctx.restore();
+        return;
+      }
+
       const isFull = ap.isFull;
       const isNearFull = ap.load === ap.maxCapacity - 1;
 
@@ -1196,6 +2602,211 @@ class LiFiDigitalTwin {
     });
   }
 
+  drawCameraNodes(ctx, isDark) {
+    if (!this.cameras) return;
+
+    this.cameras.forEach(cam => {
+      ctx.save();
+      const x = cam.x;
+      const y = cam.y;
+
+      // 1. Octagonal / Diamond Mounting Bracket on floor/ceiling intersection
+      ctx.fillStyle = isDark ? '#0f172a' : '#f1f5f9';
+      ctx.strokeStyle = cam.status === 'TRACKING' ? '#38bdf8' : (isDark ? '#334155' : '#cbd5e1');
+      ctx.lineWidth = 2;
+      ctx.shadowColor = cam.status === 'TRACKING' ? '#38bdf8' : 'transparent';
+      ctx.shadowBlur = cam.status === 'TRACKING' ? 8 : 0;
+
+      const dSize = 16;
+      ctx.beginPath();
+      ctx.moveTo(x, y - dSize);
+      ctx.lineTo(x + dSize, y);
+      ctx.lineTo(x, y + dSize);
+      ctx.lineTo(x - dSize, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // 2. Camera Dome Housing
+      ctx.fillStyle = isDark ? '#1e293b' : '#ffffff';
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // 3. Rotating Optical Camera Turret / Lens
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(cam.scanAngle);
+
+      // Camera lens barrel
+      ctx.fillStyle = '#0284c7';
+      ctx.fillRect(3, -2.5, 7, 5);
+
+      // Lens optical element
+      ctx.fillStyle = cam.status === 'TRACKING' ? '#22c55e' : '#38bdf8';
+      ctx.shadowColor = cam.status === 'TRACKING' ? '#22c55e' : '#38bdf8';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.arc(10, 0, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Center sensor diode
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 4. Camera Identifier Badge
+      const camLabel = `CAM-${cam.id}`;
+      ctx.font = 'bold 9px "JetBrains Mono", monospace';
+      const tw = ctx.measureText(camLabel).width;
+      const bw = tw + 8;
+      const bh = 14;
+      const bx = x - bw / 2;
+      const by = y - 24;
+
+      ctx.fillStyle = isDark ? '#0f172a' : '#1e293b';
+      ctx.strokeStyle = cam.status === 'TRACKING' ? '#38bdf8' : '#64748b';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, bh, 3);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = cam.status === 'TRACKING' ? '#38bdf8' : '#94a3b8';
+      ctx.textAlign = 'center';
+      ctx.fillText(camLabel, x, by + 10);
+
+      ctx.restore();
+    });
+  }
+
+  drawCameraTracking(ctx, isDark) {
+    if (!this.cameras) return;
+
+    // 1. Draw Tracking Ray from camera to tracked obstacle
+    this.cameras.forEach(cam => {
+      if (cam.status === 'TRACKING' && cam.trackedObstacle) {
+        const obs = cam.trackedObstacle;
+        const ocx = obs.x + obs.w / 2;
+        const ocy = obs.y + obs.h / 2;
+
+        ctx.save();
+        // Cyan tracking laser line
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(cam.x, cam.y);
+        ctx.lineTo(ocx, ocy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Small target reticle at obstacle center
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(obs.x - 2, obs.y - 2, obs.w + 4, obs.h + 4);
+
+        // Coordinates & Velocity Tag
+        const coordText = `[${Math.round(ocx)}, ${Math.round(ocy)}] (${obs.vx.toFixed(1)}, ${obs.vy.toFixed(1)})`;
+        ctx.font = '8px "JetBrains Mono", monospace';
+        ctx.fillStyle = '#38bdf8';
+        ctx.textAlign = 'center';
+        ctx.fillText(coordText, ocx, obs.y - 8);
+
+        ctx.restore();
+      }
+    });
+
+    // 2. Draw Trajectory Vectors for moving obstacles
+    this.obstacles.forEach(obs => {
+      if (obs.isStopped) return;
+      const ocx = obs.x + obs.w / 2;
+      const ocy = obs.y + obs.h / 2;
+      const heading = obs.heading;
+      const fDist = 140;
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(ocx, ocy);
+      ctx.lineTo(ocx + Math.cos(heading) * fDist, ocy + Math.sin(heading) * fDist);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    });
+
+    // 3. Draw Queued Handover Previews (Dashed Cyan beam to target AP & Intercept crosshair)
+    this.users.forEach(user => {
+      if (user.isQueued && user.queuedTargetAp) {
+        ctx.save();
+
+        // Dashed Cyan Predictive Queuing Beam
+        ctx.strokeStyle = '#06b6d4';
+        ctx.shadowColor = '#06b6d4';
+        ctx.shadowBlur = 8;
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 5]);
+
+        ctx.beginPath();
+        ctx.moveTo(user.x, user.y);
+        ctx.lineTo(user.queuedTargetAp.x, user.queuedTargetAp.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Pulsing backup target badge at target AP
+        ctx.strokeStyle = '#06b6d4';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(user.queuedTargetAp.x, user.queuedTargetAp.y, user.queuedTargetAp.radius + 6, 0, Math.PI * 2);
+        ctx.stroke();
+
+        const qText = `QUEUED FOR U${user.id}`;
+        ctx.font = 'bold 8px "JetBrains Mono", monospace';
+        ctx.fillStyle = '#06b6d4';
+        ctx.textAlign = 'center';
+        ctx.fillText(qText, user.queuedTargetAp.x, user.queuedTargetAp.y + user.queuedTargetAp.radius + 16);
+
+        // Target Crosshairs at Predicted Intercept Point
+        if (user.predictedInterceptPoint) {
+          const ix = user.predictedInterceptPoint.x;
+          const iy = user.predictedInterceptPoint.y;
+
+          ctx.strokeStyle = '#f97316';
+          ctx.lineWidth = 2;
+          ctx.shadowColor = '#f97316';
+          ctx.shadowBlur = 10;
+
+          // Crosshair circle
+          ctx.beginPath();
+          ctx.arc(ix, iy, 9, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Crosshair tick marks
+          ctx.beginPath();
+          ctx.moveTo(ix - 13, iy);
+          ctx.lineTo(ix + 13, iy);
+          ctx.moveTo(ix, iy - 13);
+          ctx.lineTo(ix, iy + 13);
+          ctx.stroke();
+
+          // Intercept distance text
+          ctx.fillStyle = '#f97316';
+          ctx.font = 'bold 8px "JetBrains Mono", monospace';
+          ctx.fillText(`INTERCEPT: ${Math.round(user.predictedInterceptDistance)}px`, ix, iy - 14);
+        }
+
+        ctx.restore();
+      }
+    });
+  }
+
   // ==========================================================================
   // MAIN ANIMATION & UPDATE LOOP
   // ==========================================================================
@@ -1214,16 +2825,180 @@ class LiFiDigitalTwin {
     if (!this.isPaused) {
       this.stats.simTimeSeconds += dt;
       this.updatePhysics(this.speedMultiplier);
-      this.updateBeamScheduling();
+      if (this.activeSolution === 'predictive' || this.activeSolution === 'solution-2') {
+        this.updatePredictiveCameraSystem(this.speedMultiplier);
+      } else if (this.activeSolution === 'beam-steering' || this.activeSolution === 'solution-3') {
+        this.updateDynamicBeamSteering(this.speedMultiplier);
+      } else if (this.activeSolution === 'fail-safe' || this.activeSolution === 'solution-4') {
+        this.updateFailSafeRecovery(this.speedMultiplier);
+      } else {
+        this.updateBeamScheduling();
+      }
     }
 
     this.render();
+    if (this.activeSolution === 'beam-steering' || this.activeSolution === 'solution-3') {
+      this.renderSLMPhasePattern(dt);
+    } else if (this.activeSolution === 'fail-safe' || this.activeSolution === 'solution-4') {
+      this.updateNetworkStatusPanel();
+    }
     this.updateHUD();
 
     requestAnimationFrame((t) => this.loop(t));
   }
 
+  // ==========================================================================
+  // REAL-TIME SLM PHASE COMPUTATION & DYNAMIC GRAYSCALE HOLOGRAM
+  // ==========================================================================
+
+  renderSLMPhasePattern(dt = 0.016) {
+    const canvas = document.getElementById('slmCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    if (!this.slmOffscreenCanvas) {
+      this.slmOffscreenCanvas = document.createElement('canvas');
+      this.slmOffscreenCanvas.width = 56;
+      this.slmOffscreenCanvas.height = 52;
+      this.slmOffscreenCtx = this.slmOffscreenCanvas.getContext('2d');
+      this.slmImageData = this.slmOffscreenCtx.createImageData(56, 52);
+      this.slmPhaseTime = 0;
+    }
+
+    // Find user with maximum active phase shift
+    let maxUser = null;
+    let maxShift = 0;
+    this.users.forEach(u => {
+      if (u.activePhaseShift > maxShift) {
+        maxShift = u.activePhaseShift;
+        maxUser = u;
+      }
+    });
+
+    const isSteering = maxUser && maxUser.isBeingSteered && maxShift > 1.0;
+    const thetaDeg = isSteering ? maxUser.deflectionAngle : 0;
+    const shiftDeg = isSteering ? maxUser.activePhaseShift : 0;
+    const thetaRad = thetaDeg * Math.PI / 180;
+
+    // Advance phase time: moves much faster when actively steering
+    const phaseSpeed = isSteering ? (2.8 + (shiftDeg / 15) * 4.5) : 0.9;
+    this.slmPhaseTime += (this.isPaused ? 0 : dt) * phaseSpeed * this.speedMultiplier;
+
+    // Grayscale holographic interference pattern generation:
+    // I(x, y) = 128 + 127 * cos(kx * x + ky * y + phaseTime + quad * r^2)
+    const imgData = this.slmImageData;
+    const data = imgData.data;
+    const w = 56;
+    const h = 52;
+    const cx = w / 2;
+    const cy = h / 2;
+
+    // Modulation wavevector: rotates and tilts with the deflection angle!
+    const baseFreq = isSteering ? (0.35 + (thetaDeg / 30) * 0.45) : 0.28;
+    const kx = Math.cos(thetaRad) * baseFreq;
+    const ky = Math.sin(thetaRad) * baseFreq;
+    const quad = isSteering ? 0.008 : 0.004;
+
+    let idx = 0;
+    for (let y = 0; y < h; y++) {
+      const dy = y - cy;
+      for (let x = 0; x < w; x++) {
+        const dx = x - cx;
+        const r2 = dx * dx + dy * dy;
+        const phase = kx * dx + ky * dy + this.slmPhaseTime + quad * r2;
+        // Grayscale intensity [0, 255]
+        const intensity = Math.floor(128 + 127 * Math.cos(phase));
+
+        data[idx] = intensity;     // R
+        data[idx + 1] = intensity; // G
+        data[idx + 2] = intensity; // B
+        data[idx + 3] = 255;       // Alpha
+        idx += 4;
+      }
+    }
+
+    this.slmOffscreenCtx.putImageData(imgData, 0, 0);
+
+    // Upscale to SLM canvas with crisp smoothing
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(this.slmOffscreenCanvas, 0, 0, canvas.width, canvas.height);
+
+    // Subtle optical holographic grid overlay & reticles
+    ctx.save();
+    // Dark radial vignette edge
+    const grad = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 70, canvas.width / 2, canvas.height / 2, 140);
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0.45)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Center Crosshairs
+    ctx.strokeStyle = isSteering ? 'rgba(74, 222, 128, 0.45)' : 'rgba(56, 189, 248, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2, 15);
+    ctx.lineTo(canvas.width / 2, canvas.height - 15);
+    ctx.moveTo(15, canvas.height / 2);
+    ctx.lineTo(canvas.width - 15, canvas.height / 2);
+    ctx.stroke();
+
+    // Concentric aperture rings
+    ctx.beginPath();
+    ctx.arc(canvas.width / 2, canvas.height / 2, 45, 0, Math.PI * 2);
+    ctx.arc(canvas.width / 2, canvas.height / 2, 85, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // If actively steering: draw dynamic phase gradient deflection vector arrow
+    if (isSteering) {
+      const arrowLen = 35 + (thetaDeg / 30) * 22;
+      const ax = canvas.width / 2 + Math.cos(thetaRad) * arrowLen;
+      const ay = canvas.height / 2 + Math.sin(thetaRad) * arrowLen;
+
+      ctx.strokeStyle = '#4ade80';
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = '#4ade80';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2, canvas.height / 2);
+      ctx.lineTo(ax, ay);
+      ctx.stroke();
+
+      // Arrowhead
+      const headAngle = Math.PI / 6;
+      ctx.fillStyle = '#4ade80';
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(ax - 8 * Math.cos(thetaRad - headAngle), ay - 8 * Math.sin(thetaRad - headAngle));
+      ctx.lineTo(ax - 8 * Math.cos(thetaRad + headAngle), ay - 8 * Math.sin(thetaRad + headAngle));
+      ctx.closePath();
+      ctx.fill();
+
+      // Label at vector
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 9px "JetBrains Mono", monospace';
+      ctx.shadowBlur = 4;
+      ctx.fillText(`+${thetaDeg.toFixed(1)}°`, ax + 5, ay - 3);
+    }
+
+    ctx.restore();
+  }
+
+  boostObstacles() {
+    this.obstacles.forEach(o => {
+      // Increase speed by 40% up to max limit
+      o.vx = Math.sign(o.vx || 1) * Math.min(5.0, Math.max(1.8, Math.abs(o.vx) * 1.35));
+      o.vy = Math.sign(o.vy || 1) * Math.min(5.0, Math.max(1.8, Math.abs(o.vy) * 1.35));
+    });
+    this.logEvent('[SLM SIMULATION] Obstacle velocity boosted. Dynamic beam steering active.', 'system-info');
+  }
+
   updatePhysics(speedFactor) {
+    // In Solution 1 (Load Balancing), there are ZERO obstacles and NO moving elements except the connection transitions
+    if (this.activeSolution === 'load-balance' || this.activeSolution === 'solution-1') {
+      return;
+    }
     this.obstacles.forEach(obs => obs.update(speedFactor, this.nativeWidth, this.nativeHeight));
   }
 
@@ -1245,7 +3020,7 @@ class LiFiDigitalTwin {
     const elDrops = document.getElementById('stat-physical-drops');
 
     const connectedCount = this.users.filter(u => u.currentAp !== null).length;
-    if (elConnected) elConnected.textContent = connectedCount;
+    if (elConnected) elConnected.textContent = `${connectedCount}/${this.users.length}`;
     if (elProactive) elProactive.textContent = this.stats.proactiveHandovers;
     if (elRedirects) elRedirects.textContent = this.stats.loadRedirects;
     if (elDrops) elDrops.textContent = this.stats.physicalDrops;
@@ -1258,22 +3033,32 @@ class LiFiDigitalTwin {
       let totalAssigned = 0;
 
       this.aps.forEach(ap => {
-        totalCapacity += ap.maxCapacity;
-        totalAssigned += ap.load;
-        const pct = Math.min(100, Math.round((ap.load / ap.maxCapacity) * 100));
+        if (ap.enabled) {
+          totalCapacity += ap.maxCapacity;
+          totalAssigned += ap.load;
+        }
+        const pct = ap.enabled ? Math.min(100, Math.round((ap.load / ap.maxCapacity) * 100)) : 0;
 
         let barColor = 'bg-blue-600';
-        if (ap.load >= ap.maxCapacity) barColor = 'bg-red-500 animate-pulse';
+        if (!ap.enabled) barColor = 'bg-slate-500';
+        else if (ap.load >= ap.maxCapacity) barColor = 'bg-red-500 animate-pulse';
         else if (ap.load === ap.maxCapacity - 1) barColor = 'bg-amber-500';
 
+        const statusText = ap.enabled
+          ? `${ap.load}/${ap.maxCapacity}`
+          : 'OFFLINE';
+
         html += `
-          <div>
+          <div class="p-2 rounded-lg border ${ap.enabled ? 'border-slate-200 dark:border-slate-700/60 bg-slate-100/60 dark:bg-slate-800/40' : 'border-red-500/30 bg-red-500/5'} cursor-pointer hover:border-blue-500/60 transition" onclick="window.lifiApp && window.lifiApp.toggleAP(${ap.id})" title="Click to toggle AP-${ap.id + 1} on/off">
             <div class="flex items-center justify-between text-[11px] mb-1">
-              <span class="font-bold text-slate-700 dark:text-slate-200">AP-${ap.id + 1}</span>
-              <span class="font-mono text-slate-500">${ap.load}/${ap.maxCapacity} (${pct}%)</span>
+              <span class="font-bold text-slate-700 dark:text-slate-200 flex items-center space-x-1">
+                <span class="w-1.5 h-1.5 rounded-full ${ap.enabled ? 'bg-emerald-500' : 'bg-red-500'}"></span>
+                <span>AP-${ap.id + 1}</span>
+              </span>
+              <span class="font-mono text-[10px] ${ap.enabled ? (ap.load >= ap.maxCapacity ? 'text-red-500 font-bold' : 'text-slate-500') : 'text-red-400 font-bold'}">${statusText}</span>
             </div>
-            <div class="w-full bg-slate-200 dark:bg-slate-700/60 rounded-full h-2 overflow-hidden">
-              <div class="${barColor} h-2 rounded-full transition-all duration-300" style="width: ${pct}%"></div>
+            <div class="w-full bg-slate-200 dark:bg-slate-700/60 rounded-full h-1.5 overflow-hidden">
+              <div class="${barColor} h-1.5 rounded-full transition-all duration-300" style="width: ${pct}%"></div>
             </div>
           </div>
         `;
@@ -1282,11 +3067,29 @@ class LiFiDigitalTwin {
       metersContainer.innerHTML = html;
 
       const satEl = document.getElementById('stat-network-saturation');
-      if (satEl && totalCapacity > 0) {
-        const satPct = Math.round((totalAssigned / totalCapacity) * 100);
-        satEl.textContent = `${satPct}% Saturated`;
+      if (satEl) {
+        if (totalCapacity > 0) {
+          const satPct = Math.round((totalAssigned / totalCapacity) * 100);
+          satEl.textContent = `${satPct}% Saturated`;
+        } else {
+          satEl.textContent = `All APs Offline`;
+        }
       }
     }
+
+    // Update AP Toggle Buttons in Toolbar
+    const toggleBtns = document.querySelectorAll('.ap-toggle-btn');
+    toggleBtns.forEach(btn => {
+      const apIdx = parseInt(btn.getAttribute('data-ap'), 10);
+      const ap = this.aps[apIdx];
+      if (ap) {
+        if (ap.enabled) {
+          btn.className = 'ap-toggle-btn px-2 py-1 rounded text-[11px] font-mono font-bold transition bg-blue-600 text-white shadow-sm hover:bg-blue-700';
+        } else {
+          btn.className = 'ap-toggle-btn px-2 py-1 rounded text-[11px] font-mono font-bold transition bg-slate-200 dark:bg-slate-700 text-slate-400 border border-red-500/40 line-through';
+        }
+      }
+    });
   }
 
   logEvent(msg, type = 'system-info') {
@@ -1307,7 +3110,7 @@ class LiFiDigitalTwin {
   }
 
   // ==========================================================================
-  // EVENT BINDINGS & VIEW SWITCHING
+  // EVENT BINDINGS & VIEW SWITCHING (4 SOLUTIONS)
   // ==========================================================================
 
   setSolution(solution) {
@@ -1318,19 +3121,27 @@ class LiFiDigitalTwin {
     const navHome = document.getElementById('nav-btn-home');
     const navLB = document.getElementById('nav-btn-load-balance');
     const navPred = document.getElementById('nav-btn-predictive');
+    const navBeam = document.getElementById('nav-btn-beam-steering');
+    const navFail = document.getElementById('nav-btn-fail-safe');
+    const panelLoad = document.getElementById('panel-load-distribution');
+    const panelSLM = document.getElementById('panel-slm-computation');
+    const panelNet = document.getElementById('panel-network-status');
+    const containerForce = document.getElementById('container-force-congestion');
 
     if (solution === 'home') {
-      viewHome.classList.remove('hidden');
-      viewSim.classList.add('hidden');
-      navHome.classList.add('active');
-      navLB.classList.remove('active');
-      navPred.classList.remove('active');
+      viewHome?.classList.remove('hidden');
+      viewSim?.classList.add('hidden');
+      navHome?.classList.add('active');
+      navLB?.classList.remove('active');
+      navPred?.classList.remove('active');
+      navBeam?.classList.remove('active');
+      navFail?.classList.remove('active');
       return;
     }
 
-    viewHome.classList.add('hidden');
-    viewSim.classList.remove('hidden');
-    navHome.classList.remove('active');
+    viewHome?.classList.add('hidden');
+    viewSim?.classList.remove('hidden');
+    navHome?.classList.remove('active');
 
     const titleEl = document.getElementById('solution-title');
     const subEl = document.getElementById('solution-subtitle');
@@ -1338,55 +3149,229 @@ class LiFiDigitalTwin {
     const switchBtnText = document.getElementById('btn-switch-solution-text');
     const presetsContainer = document.getElementById('solution-presets-container');
 
-    if (solution === 'load-balance') {
-      navLB.classList.add('active');
-      navPred.classList.remove('active');
-      titleEl.textContent = 'Page 1: Load Balancing & Overload Redirection';
-      subEl.textContent = 'Observing dynamic user re-allocation when APs reach maximum capacity threshold (3 users/AP).';
-      tagEl.textContent = 'Mode: Capacity Limit';
-      tagEl.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase font-semibold';
-      switchBtnText.textContent = 'Switch to Predictive Sensing';
+    if (solution === 'load-balance' || solution === 'solution-1') {
+      navLB?.classList.add('active');
+      navPred?.classList.remove('active');
+      navBeam?.classList.remove('active');
+      navFail?.classList.remove('active');
+      panelLoad?.classList.remove('hidden');
+      panelSLM?.classList.add('hidden');
+      panelNet?.classList.add('hidden');
+      containerForce?.classList.add('hidden');
 
-      // Load Balancing Action Buttons
-      presetsContainer.innerHTML = `
-        <button id="btn-action-overload" class="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition">
-          Burst Overload AP-2
-        </button>
-        <button id="btn-action-rebalance" class="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium transition">
-          Rebalance All
-        </button>
-      `;
+      if (titleEl) titleEl.textContent = 'Load Balancing & Overload Redirection';
+      if (subEl) subEl.textContent = 'Dynamic multi-user capacity management and overload redirection.';
+      if (tagEl) {
+        tagEl.textContent = 'NO OBSTACLES';
+        tagEl.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase font-semibold';
+      }
+      if (switchBtnText) switchBtnText.textContent = 'Next: Predictive Sensing';
 
-      document.getElementById('btn-action-overload')?.addEventListener('click', () => this.triggerAP2Overload());
-      document.getElementById('btn-action-rebalance')?.addEventListener('click', () => this.triggerRebalanceAll());
-    } else {
-      navLB.classList.remove('active');
-      navPred.classList.add('active');
-      titleEl.textContent = 'Page 2: Proactive Obstacle Sensing & Predictive Handover';
-      subEl.textContent = 'Demonstrating zero-latency Orange -> Green handovers before walking obstacles ever cut the beam.';
-      tagEl.textContent = 'Mode: Predictive Warning';
-      tagEl.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase font-semibold';
-      switchBtnText.textContent = 'Switch to Load Balancing';
+      const sel = document.getElementById('select-capacity');
+      if (sel) sel.value = String(this.defaultCapacity);
 
-      // Predictive Sensing Action Buttons
-      presetsContainer.innerHTML = `
-        <button id="btn-action-fast-patron" class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition">
-          Fast Patron
-        </button>
-        <button id="btn-action-slow-mo" class="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium transition">
-          Slow-Mo (0.25x)
-        </button>
-        <button id="btn-action-compare-mode" class="px-2.5 py-1.5 rounded-lg border border-amber-500/40 hover:bg-amber-500/10 text-amber-500 text-xs font-medium transition">
-          ${this.reactiveModeOnly ? 'Reactive' : 'Proactive'} Mode
-        </button>
-      `;
+      const pTitle = document.getElementById('panel-action-title');
+      const pGrid = document.getElementById('panel-action-buttons-grid');
+      const pDesc = document.getElementById('panel-action-description');
+      const legendPill = document.getElementById('canvas-legend-pill');
 
-      document.getElementById('btn-action-fast-patron')?.addEventListener('click', () => this.triggerFastCrossing());
-      document.getElementById('btn-action-slow-mo')?.addEventListener('click', () => this.triggerSlowMotion());
-      document.getElementById('btn-action-compare-mode')?.addEventListener('click', (e) => {
-        this.toggleProactiveVsReactive();
-        e.target.textContent = this.reactiveModeOnly ? 'Reactive Mode' : 'Proactive Mode';
+      if (pTitle) pTitle.textContent = 'Interactive Overload Actions';
+      if (pGrid) {
+        pGrid.innerHTML = `
+          <button id="btn-panel-overload" class="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition shadow-sm flex items-center justify-center space-x-1">
+            <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+            <span>Burst Overload</span>
+          </button>
+          <button id="btn-panel-rebalance" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition flex items-center justify-center space-x-1 text-slate-700 dark:text-slate-200">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            <span>Rebalance All</span>
+          </button>
+        `;
+        document.getElementById('btn-panel-overload')?.addEventListener('click', () => this.triggerAP2Overload());
+        document.getElementById('btn-panel-rebalance')?.addEventListener('click', () => this.triggerRebalanceAll());
+      }
+      if (pDesc) {
+        pDesc.innerHTML = 'Click <strong>Burst Overload</strong> or adjust the <strong>AP Capacity</strong> in the top toolbar to exceed limits and witness dynamic cascading Line of Sight redirection.';
+      }
+      if (legendPill) {
+        legendPill.innerHTML = `
+          <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span><span>AP (Blue)</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span>User (Green)</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-3.5 h-0.5 bg-emerald-500"></span><span>Active LoS</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-3.5 h-0.5 bg-red-500"></span><span>Overload / Cut</span></span>
+        `;
+      }
+    } else if (solution === 'predictive' || solution === 'solution-2') {
+      navLB?.classList.remove('active');
+      navPred?.classList.add('active');
+      navBeam?.classList.remove('active');
+      navFail?.classList.remove('active');
+      panelLoad?.classList.remove('hidden');
+      panelSLM?.classList.add('hidden');
+      panelNet?.classList.add('hidden');
+      containerForce?.classList.add('hidden');
+
+      if (titleEl) titleEl.textContent = 'Solution 2: Proactive Obstacle Sensing & Predictive Handover';
+      if (subEl) subEl.textContent = 'Camera sensor tracking, trajectory prediction, proactive user queuing, and instant zero-latency handover.';
+      if (tagEl) {
+        tagEl.textContent = 'CAMERAS & QUEUING ACTIVE';
+        tagEl.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase font-semibold';
+      }
+      if (switchBtnText) switchBtnText.textContent = 'Next: Dynamic Beam Steering';
+
+      if (this.defaultCapacity < 5) {
+        this.setCapacityLimit(5);
+      }
+      const sel = document.getElementById('select-capacity');
+      if (sel) sel.value = String(this.defaultCapacity);
+
+      const pTitle = document.getElementById('panel-action-title');
+      const pGrid = document.getElementById('panel-action-buttons-grid');
+      const pDesc = document.getElementById('panel-action-description');
+      const legendPill = document.getElementById('canvas-legend-pill');
+
+      if (pTitle) pTitle.textContent = 'Predictive Sensing & Cancellation Controls';
+      if (pGrid) {
+        pGrid.innerHTML = `
+          <button id="btn-panel-accel" class="px-2.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition shadow-sm flex items-center justify-center space-x-1">
+            <i data-lucide="fast-forward" class="w-3.5 h-3.5"></i>
+            <span>Accelerate Obstacle</span>
+          </button>
+          <button id="btn-panel-invert" class="px-2.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold transition shadow-sm flex items-center justify-center space-x-1">
+            <i data-lucide="arrow-left-right" class="w-3.5 h-3.5"></i>
+            <span>Invert Direction</span>
+          </button>
+          <button id="btn-panel-stop" class="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition flex items-center justify-center space-x-1 text-slate-700 dark:text-slate-200">
+            <i data-lucide="pause-circle" class="w-3.5 h-3.5"></i>
+            <span id="btn-panel-stop-text">Stop Obstacle</span>
+          </button>
+          <button id="btn-panel-rebalance" class="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition flex items-center justify-center space-x-1 text-slate-700 dark:text-slate-200">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            <span>Rebalance All</span>
+          </button>
+        `;
+        document.getElementById('btn-panel-accel')?.addEventListener('click', () => this.accelerateObstacle(1));
+        document.getElementById('btn-panel-invert')?.addEventListener('click', () => this.invertObstacleTrajectories());
+        document.getElementById('btn-panel-stop')?.addEventListener('click', () => this.toggleStopObstacle(1));
+        document.getElementById('btn-panel-rebalance')?.addEventListener('click', () => this.triggerRebalanceAll());
+      }
+      if (pDesc) {
+        pDesc.innerHTML = 'Cameras track obstacle coordinates & trajectory. <strong>Queued users</strong> display in pulsing Orange with a Cyan backup link, <strong>switching instantly to Green</strong> on arrival. Click <strong>Invert Direction</strong> or <strong>Stop Obstacle</strong> to test immediate handover cancellation while preserving original connections!';
+      }
+      if (legendPill) {
+        legendPill.innerHTML = `
+          <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span><span>AP</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span>User</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 bg-cyan-400"></span><span>Camera</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[8px] border-l-transparent border-r-transparent border-b-red-500 inline-block"></span><span>Obstacle</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-3.5 h-0.5 bg-emerald-500"></span><span>Active</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-3.5 h-0.5 bg-orange-500"></span><span>Queued</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-3.5 h-0.5 bg-cyan-400"></span><span>Backup Link</span></span>
+        `;
+      }
+    } else if (solution === 'beam-steering' || solution === 'solution-3') {
+      navLB?.classList.remove('active');
+      navPred?.classList.remove('active');
+      navBeam?.classList.add('active');
+      navFail?.classList.remove('active');
+      panelLoad?.classList.add('hidden');
+      panelSLM?.classList.remove('hidden');
+      panelNet?.classList.add('hidden');
+      containerForce?.classList.add('hidden');
+
+      if (titleEl) titleEl.textContent = 'Solution 3: Optical Beam Steering (Zero Handover)';
+      if (subEl) subEl.textContent = 'Real-time SLM phase computation curves optical beams around moving obstacles with zero AP handover.';
+      if (tagEl) {
+        tagEl.textContent = 'SLM BEAM STEERING ACTIVE';
+        tagEl.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase font-semibold';
+      }
+      if (switchBtnText) switchBtnText.textContent = 'Next: Fail-Safe Recovery';
+
+      const sel = document.getElementById('select-capacity');
+      if (sel) sel.value = String(this.defaultCapacity);
+
+      // Re-enable and associate any dropped users - zero dropped in beam steering!
+      this.users.forEach(u => {
+        u.isDropped = false;
+        u.failedAp = null;
+        u.threatTimer = 0;
+        u.isQueued = false;
       });
+
+      const legendPill = document.getElementById('canvas-legend-pill');
+      if (legendPill) {
+        legendPill.innerHTML = `
+          <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span><span>AP (Blue)</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span>User (Green)</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 bg-cyan-400"></span><span>Camera</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[8px] border-l-transparent border-r-transparent border-b-red-500 inline-block"></span><span>Obstacle (No Cone)</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-3.5 h-0.5 bg-emerald-500"></span><span>Active LoS</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-3.5 h-0.5 bg-emerald-400 rounded-full"></span><span>Bezier Curved Beam</span></span>
+        `;
+      }
+
+      // Bind SLM panel buttons
+      document.getElementById('btn-slm-speed-obstacle')?.addEventListener('click', () => this.boostObstacles());
+      document.getElementById('btn-slm-invert-path')?.addEventListener('click', () => this.invertObstacleTrajectories());
+    } else if (solution === 'fail-safe' || solution === 'solution-4') {
+      navLB?.classList.remove('active');
+      navPred?.classList.remove('active');
+      navBeam?.classList.remove('active');
+      navFail?.classList.add('active');
+      panelLoad?.classList.add('hidden');
+      panelSLM?.classList.add('hidden');
+      panelNet?.classList.remove('hidden');
+      containerForce?.classList.remove('hidden');
+
+      if (titleEl) titleEl.textContent = 'Solution 4: Complete Congestion & Wi-Fi Fallback';
+      if (subEl) subEl.textContent = 'Optical link failure detection, automated RF Wi-Fi backup offloading, and continuous 60 FPS self-healing Li-Fi reconnection.';
+      if (tagEl) {
+        tagEl.textContent = 'HYBRID LI-FI / WI-FI FALLBACK';
+        tagEl.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase font-semibold';
+      }
+      if (switchBtnText) switchBtnText.textContent = 'Next: Load Balancing';
+
+      const sel = document.getElementById('select-capacity');
+      if (sel) sel.value = String(this.defaultCapacity);
+
+      const legendPill = document.getElementById('canvas-legend-pill');
+      if (legendPill) {
+        legendPill.innerHTML = `
+          <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span><span>AP (Blue)</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span>User (Green)</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 bg-cyan-400"></span><span>Camera</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[8px] border-l-transparent border-r-transparent border-b-red-500 inline-block"></span><span>Obstacle</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-3.5 h-0.5 bg-emerald-500"></span><span>Primary Li-Fi</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-3.5 h-0.5 bg-slate-400 border-b border-dashed border-slate-400"></span><span>Wi-Fi Fallback (Grey)</span></span>
+          <span class="text-slate-600">|</span>
+          <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-500"></span><span>Wi-Fi Router</span></span>
+        `;
+      }
+
+      // Bind Panel Buttons
+      document.getElementById('btn-panel-force-congestion')?.addEventListener('click', () => this.forceCongestion());
+      document.getElementById('btn-panel-self-heal')?.addEventListener('click', () => this.selfHealingRecovery());
+
+      this.updateNetworkStatusPanel();
     }
 
     lucide.createIcons();
@@ -1399,14 +3384,34 @@ class LiFiDigitalTwin {
     document.getElementById('nav-btn-home')?.addEventListener('click', () => this.setSolution('home'));
     document.getElementById('nav-btn-load-balance')?.addEventListener('click', () => this.setSolution('load-balance'));
     document.getElementById('nav-btn-predictive')?.addEventListener('click', () => this.setSolution('predictive'));
+    document.getElementById('nav-btn-beam-steering')?.addEventListener('click', () => this.setSolution('beam-steering'));
+    document.getElementById('nav-btn-fail-safe')?.addEventListener('click', () => this.setSolution('fail-safe'));
+    document.getElementById('btn-back-home')?.addEventListener('click', () => this.setSolution('home'));
 
-    document.getElementById('home-launch-solution-1')?.addEventListener('click', () => this.setSolution('load-balance'));
-    document.getElementById('card-launch-solution-1')?.addEventListener('click', () => this.setSolution('load-balance'));
-    document.getElementById('home-launch-solution-2')?.addEventListener('click', () => this.setSolution('predictive'));
-    document.getElementById('card-launch-solution-2')?.addEventListener('click', () => this.setSolution('predictive'));
+    // Top Bar Force Congestion button
+    document.getElementById('btn-force-congestion')?.addEventListener('click', () => this.forceCongestion());
 
+    // 4 Solutions Grid Cards
+    document.getElementById('card-solution-1')?.addEventListener('click', () => this.setSolution('load-balance'));
+    document.getElementById('card-solution-2')?.addEventListener('click', () => this.setSolution('predictive'));
+    document.getElementById('card-solution-3')?.addEventListener('click', () => this.setSolution('beam-steering'));
+    document.getElementById('card-solution-4')?.addEventListener('click', () => this.setSolution('fail-safe'));
+
+    // Switch / Cycle Solutions
+    const solutionCycle = ['load-balance', 'predictive', 'beam-steering', 'fail-safe'];
     document.getElementById('btn-switch-solution')?.addEventListener('click', () => {
-      this.setSolution(this.activeSolution === 'load-balance' ? 'predictive' : 'load-balance');
+      const curIdx = solutionCycle.indexOf(this.activeSolution);
+      const nextSolution = solutionCycle[(curIdx + 1) % solutionCycle.length];
+      this.setSolution(nextSolution);
+    });
+
+    // AP Toggles in Toolbar
+    const toggleBtns = document.querySelectorAll('.ap-toggle-btn');
+    toggleBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const apIdx = parseInt(btn.getAttribute('data-ap'), 10);
+        this.toggleAP(apIdx);
+      });
     });
 
     // Play / Pause
@@ -1448,11 +3453,9 @@ class LiFiDigitalTwin {
       this.setCapacityLimit(e.target.value);
     });
 
-    // Beam Style
-    document.getElementById('select-beam-style')?.addEventListener('change', (e) => {
-      this.beamStyle = e.target.value;
-      this.logEvent(`Beam rendering style set to: ${this.beamStyle.toUpperCase()}`, 'system-info');
-    });
+    // AP Load Distribution Panel Action Buttons
+    document.getElementById('btn-panel-overload')?.addEventListener('click', () => this.triggerAP2Overload());
+    document.getElementById('btn-panel-rebalance')?.addEventListener('click', () => this.triggerRebalanceAll());
 
     // Toggle Grid
     const gridBtn = document.getElementById('btn-toggle-grid');
@@ -1467,12 +3470,6 @@ class LiFiDigitalTwin {
       this.showZones = !this.showZones;
       zonesBtn.textContent = `Zones: ${this.showZones ? 'ON' : 'OFF'}`;
       zonesBtn.className = `px-2 py-1 rounded bg-slate-900/80 backdrop-blur border border-slate-700 text-[10px] ${this.showZones ? 'text-amber-400' : 'text-slate-400'} font-mono transition`;
-    });
-
-    // Clear Log
-    document.getElementById('btn-clear-log')?.addEventListener('click', () => {
-      const list = document.getElementById('eventLogList');
-      if (list) list.innerHTML = '';
     });
 
     // Theme Toggle
@@ -1513,11 +3510,11 @@ class LiFiDigitalTwin {
     const closeBtn = document.getElementById('btn-close-modal');
     const gotItBtn = document.getElementById('btn-modal-gotit');
 
-    infoBtn?.addEventListener('click', () => modal.classList.remove('hidden'));
-    closeBtn?.addEventListener('click', () => modal.classList.add('hidden'));
-    gotItBtn?.addEventListener('click', () => modal.classList.add('hidden'));
+    infoBtn?.addEventListener('click', () => modal?.classList.remove('hidden'));
+    closeBtn?.addEventListener('click', () => modal?.classList.add('hidden'));
+    gotItBtn?.addEventListener('click', () => modal?.classList.add('hidden'));
     modal?.addEventListener('click', (e) => {
-      if (e.target === modal) modal.classList.add('hidden');
+      if (e.target === modal) modal?.classList.add('hidden');
     });
 
     // Keyboard Shortcuts
@@ -1534,6 +3531,10 @@ class LiFiDigitalTwin {
         this.setSolution('load-balance');
       } else if (e.key === '2') {
         this.setSolution('predictive');
+      } else if (e.key === '3') {
+        this.setSolution('beam-steering');
+      } else if (e.key === '4') {
+        this.setSolution('fail-safe');
       } else if (e.key.toLowerCase() === 'h') {
         this.setSolution('home');
       }
@@ -1587,21 +3588,55 @@ class LiFiDigitalTwin {
       }
     }
 
+    // Check Cameras (Solution 2 Sensors at Lane Intersections)
+    if (!found && this.cameras) {
+      for (const cam of this.cameras) {
+        if (MathUtils.distance(m, cam.pos) <= 20) {
+          found = {
+            type: 'camera',
+            title: `Optical Sensor ${cam.name}`,
+            data: [
+              `Position: (${cam.x}, ${cam.y}) [Lane Junction]`,
+              `Sensor State: ${cam.status}`,
+              `Tracked Target: ${cam.trackedObstacle ? `Obstacle #${cam.trackedObstacle.id}` : 'None (Radar Scanning)'}`,
+              `Target Coords: ${cam.obstacleCoords ? `(${cam.obstacleCoords.x}, ${cam.obstacleCoords.y})` : 'N/A'}`,
+              `Target Velocity: ${cam.obstacleVelocity ? `(${cam.obstacleVelocity.vx.toFixed(1)}, ${cam.obstacleVelocity.vy.toFixed(1)})` : 'N/A'}`
+            ]
+          };
+          break;
+        }
+      }
+    }
+
     // Check Users
     if (!found) {
       for (const u of this.users) {
         if (MathUtils.distance(m, u.pos) <= 12) {
           const apText = u.currentAp ? `AP-${u.currentAp.id + 1}` : 'Disconnected';
-          const statusText = u.isDropped ? 'Dropped (Physical Cut)' : (u.threatTimer > 0 ? 'Threat Warning (Orange)' : 'Active High-Speed');
+          let statusText = 'Active High-Speed';
+          if (u.isDropped) {
+            statusText = 'Dropped (Physical Cut)';
+          } else if (u.isQueued) {
+            statusText = `QUEUED FOR HANDOVER → AP-${u.queuedTargetAp.id + 1} (Threat: Obstacle #${u.queuedObstacle.id})`;
+          } else if (u.threatTimer > 0) {
+            statusText = 'Threat Warning (Orange)';
+          }
+
+          const data = [
+            `Assigned: ${apText}`,
+            `Link Status: ${statusText}`,
+            `SNR: ${u.currentAp ? (32.4 - u.currentAp.distanceTo(u.pos) * 0.02).toFixed(1) : 0} dB`,
+            `Zone: Table ${u.tableId}`
+          ];
+
+          if (u.isQueued) {
+            data.push(`Target Intercept: ${Math.round(u.predictedInterceptDistance)} px`);
+          }
+
           found = {
             type: 'user',
             title: `Stationary User #U${u.id}`,
-            data: [
-              `Assigned: ${apText}`,
-              `Link Status: ${statusText}`,
-              `SNR: ${u.currentAp ? (32.4 - u.currentAp.distanceTo(u.pos) * 0.02).toFixed(1) : 0} dB`,
-              `Zone: Table ${u.tableId}`
-            ]
+            data
           };
           break;
         }
@@ -1616,10 +3651,11 @@ class LiFiDigitalTwin {
             type: 'obstacle',
             title: `Moving Patron #${obs.id}`,
             data: [
+              `State: ${obs.isStopped ? 'STOPPED / HALTED' : 'DYNAMICALLY MOVING'}`,
               `Lane: ${obs.laneType.toUpperCase()} walkway`,
               `Velocity: (${obs.vx.toFixed(1)}, ${obs.vy.toFixed(1)})`,
-              `Warning Distance: ${obs.leadDistance} px`,
-              `Trajectory: Oriented Forward`
+              `Lookahead Horizon: 180 px`,
+              `Trajectory: ${Math.round(obs.heading * 180 / Math.PI)}°`
             ]
           };
           break;
@@ -1651,5 +3687,15 @@ class LiFiDigitalTwin {
 
 window.addEventListener('DOMContentLoaded', () => {
   window.lifiApp = new LiFiDigitalTwin();
+  const hash = window.location.hash.toLowerCase();
+  if (hash === '#load-balance' || hash === '#solution-1' || hash === '#solution1') {
+    window.lifiApp.setSolution('load-balance');
+  } else if (hash === '#predictive' || hash === '#solution-2') {
+    window.lifiApp.setSolution('predictive');
+  } else if (hash === '#beam-steering' || hash === '#solution-3') {
+    window.lifiApp.setSolution('beam-steering');
+  } else if (hash === '#fail-safe' || hash === '#solution-4' || hash === '#occlusion-recovery') {
+    window.lifiApp.setSolution('fail-safe');
+  }
   console.log('[LuminaLanes] Li-Fi Digital Twin engine running at 60 FPS.');
 });

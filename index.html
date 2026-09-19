@@ -87,6 +87,16 @@
           <i data-lucide="radar" class="w-4 h-4"></i>
           <span>2. Predictive Sensing</span>
         </button>
+
+        <button id="nav-btn-beam-steering" class="nav-tab-btn px-3 py-2 text-sm font-medium rounded-lg text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 flex items-center space-x-1.5">
+          <i data-lucide="git-branch" class="w-4 h-4"></i>
+          <span>3. Dynamic Beam Steering</span>
+        </button>
+
+        <button id="nav-btn-fail-safe" class="nav-tab-btn px-3 py-2 text-sm font-medium rounded-lg text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 flex items-center space-x-1.5">
+          <i data-lucide="wifi-off" class="w-4 h-4"></i>
+          <span>4. Occlusion Recovery</span>
+        </button>
       </nav>
 
       <!-- Right Utility Controls -->
@@ -117,342 +127,166 @@
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
     <!-- ================================================================== -->
-    <!-- VIEW 0: HOME DASHBOARD                                             -->
+    <!-- VIEW 0: HOME HUB (MINIMAL TITLE CARD & 4 SOLUTIONS GRID ONLY)       -->
     <!-- ================================================================== -->
-    <section id="view-home" class="space-y-8 animate-fadeIn">
+    <section id="view-home" class="space-y-8 animate-fadeIn max-w-5xl mx-auto py-4">
       
-      <!-- Hero Banner -->
-      <div class="relative overflow-hidden rounded-2xl p-8 sm:p-10 border border-slate-200 dark:border-slate-800 bg-gradient-to-br from-blue-900/10 via-indigo-900/10 to-emerald-900/10 dark:from-slate-900 dark:via-blue-950/40 dark:to-slate-900 shadow-xl">
-        <div class="absolute -top-24 -right-24 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div class="absolute -bottom-24 -left-24 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        
-        <div class="relative z-10 max-w-3xl">
-          <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 mb-4">
-            <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-            <span>Optical Wireless Communication (OWC) Digital Twin</span>
-          </div>
-
-          <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">
-            Dynamic Li-Fi Beam Scheduling & <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-400">Intelligent Load Balancing</span>
-          </h1>
-
-          <p class="mt-4 text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-            Experience real-time optical wireless beam steering in a high-density university library floorplan. Witness autonomous multi-AP capacity re-routing and predictive obstacle sensing that guarantees zero-latency, seamless Li-Fi connectivity.
-          </p>
-
-          <div class="mt-6 flex flex-wrap gap-4">
-            <button id="home-launch-solution-1" class="px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm shadow-lg shadow-blue-500/25 flex items-center space-x-2 transition transform hover:-translate-y-0.5">
-              <i data-lucide="scale" class="w-4 h-4"></i>
-              <span>Launch Solution 1: Load Balancing</span>
-            </button>
-
-            <button id="home-launch-solution-2" class="px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm shadow-lg shadow-emerald-500/25 flex items-center space-x-2 transition transform hover:-translate-y-0.5">
-              <i data-lucide="radar" class="w-4 h-4"></i>
-              <span>Launch Solution 2: Predictive Sensing</span>
-            </button>
-          </div>
-        </div>
+      <!-- Main Title Card -->
+      <div class="glass-panel rounded-2xl p-8 sm:p-10 border border-slate-200 dark:border-slate-800 text-center shadow-lg">
+        <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">
+          LuminaLanes: Dynamic Li-Fi Beam Scheduling & Load Balancing
+        </h1>
+        <p class="mt-4 text-base sm:text-lg text-slate-600 dark:text-slate-300 max-w-3xl mx-auto leading-relaxed">
+          An autonomous digital twin modeling visible light communication, dynamic multi-AP capacity re-routing, and proactive obstacle-sensing handovers in high-density indoor environments.
+        </p>
       </div>
 
-      <!-- Overview KPI Metrics -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="glass-panel p-5 rounded-xl">
-          <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Ceiling Matrix</span>
-            <i data-lucide="grid" class="w-4 h-4 text-blue-500"></i>
-          </div>
-          <div class="mt-2 flex items-baseline space-x-2">
-            <span class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">6 APs</span>
-            <span class="text-xs text-emerald-500 font-medium">3×2 Grid</span>
-          </div>
-          <p class="mt-1 text-xs text-slate-500">Continuous optical coverage</p>
-        </div>
-
-        <div class="glass-panel p-5 rounded-xl">
-          <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Capacity Limit</span>
-            <i data-lucide="users" class="w-4 h-4 text-indigo-500"></i>
-          </div>
-          <div class="mt-2 flex items-baseline space-x-2">
-            <span class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">3 Users</span>
-            <span class="text-xs text-indigo-500 font-medium">per AP Max</span>
-          </div>
-          <p class="mt-1 text-xs text-slate-500">Cascading LoS overflow</p>
-        </div>
-
-        <div class="glass-panel p-5 rounded-xl">
-          <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Handover Latency</span>
-            <i data-lucide="zap" class="w-4 h-4 text-amber-500"></i>
-          </div>
-          <div class="mt-2 flex items-baseline space-x-2">
-            <span class="text-2xl sm:text-3xl font-bold text-emerald-500">0 ms</span>
-            <span class="text-xs text-slate-400 line-through">120 ms</span>
-          </div>
-          <p class="mt-1 text-xs text-slate-500">Proactive pre-break handover</p>
-        </div>
-
-        <div class="glass-panel p-5 rounded-xl">
-          <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Optical Beam Physics</span>
-            <i data-lucide="activity" class="w-4 h-4 text-emerald-500"></i>
-          </div>
-          <div class="mt-2 flex items-baseline space-x-2">
-            <span class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Tri-Color</span>
-            <span class="text-xs text-emerald-500 font-medium">State FSM</span>
-          </div>
-          <p class="mt-1 text-xs text-slate-500">Green / Orange / Red logic</p>
-        </div>
-      </div>
-
-      <!-- Solution Navigation Cards (The Two Core Modes) -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Solutions Grid (Exactly 4 Interactive Cards Only) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         
         <!-- Solution 1 Card -->
-        <div class="glass-panel rounded-2xl p-7 border border-slate-200 dark:border-slate-800 hover-elevate flex flex-col justify-between relative overflow-hidden group">
-          <div class="absolute top-0 right-0 w-48 h-48 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition duration-500"></div>
-          <div>
-            <div class="flex items-center justify-between mb-4">
-              <span class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/25">
-                Page 1 • Capacity & Flow
-              </span>
-              <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
-                <i data-lucide="scale" class="w-5 h-5"></i>
-              </div>
-            </div>
-
-            <h3 class="text-2xl font-bold text-slate-900 dark:text-white">Load Balancing & Overload Redirection</h3>
-            <p class="mt-3 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              Focuses strictly on multi-user network capacity management. Evaluates AP threshold limits (max 3 users/AP). When any AP reaches saturation due to study cluster crowding, excess connections are seamlessly migrated to the nearest available neighbor with an unblocked Line-of-Sight.
-            </p>
-
-            <div class="mt-5 space-y-2 text-xs text-slate-500 dark:text-slate-400">
-              <div class="flex items-center space-x-2">
-                <i data-lucide="check-circle-2" class="w-4 h-4 text-blue-500"></i>
-                <span>Strict AP Capacity Limits (Configurable: 2 to 5 users/AP)</span>
-              </div>
-              <div class="flex items-center space-x-2">
-                <i data-lucide="check-circle-2" class="w-4 h-4 text-blue-500"></i>
-                <span>Cascading distance-sorted LoS neighbor allocation</span>
-              </div>
-              <div class="flex items-center space-x-2">
-                <i data-lucide="check-circle-2" class="w-4 h-4 text-blue-500"></i>
-                <span>Interactive congestion surge scenarios (e.g. Table 3 exam peak)</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-8 pt-6 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
-            <span class="text-xs text-slate-500 font-mono">Algorithm: Greedy LoS Minimum-Distance Cascade</span>
-            <button id="card-launch-solution-1" class="px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold flex items-center space-x-2 transition">
-              <span>Open Solution 1</span>
-              <i data-lucide="arrow-right" class="w-4 h-4"></i>
-            </button>
-          </div>
+        <div id="card-solution-1" class="glass-panel rounded-2xl p-7 border border-slate-200 dark:border-slate-800 hover-elevate cursor-pointer transition flex flex-col justify-center">
+          <h3 class="text-xl font-bold text-slate-900 dark:text-white">Load Balancing & Overload Redirection</h3>
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            Evaluates AP capacity thresholds and seamlessly migrates excess user connections to neighboring access points with unobstructed Line-of-Sight.
+          </p>
         </div>
 
         <!-- Solution 2 Card -->
-        <div class="glass-panel rounded-2xl p-7 border border-slate-200 dark:border-slate-800 hover-elevate flex flex-col justify-between relative overflow-hidden group">
-          <div class="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition duration-500"></div>
-          <div>
-            <div class="flex items-center justify-between mb-4">
-              <span class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
-                Page 2 • Predictive Handover
-              </span>
-              <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                <i data-lucide="radar" class="w-5 h-5"></i>
-              </div>
-            </div>
-
-            <h3 class="text-2xl font-bold text-slate-900 dark:text-white">Proactive Obstacle Sensing & Predictive Handover</h3>
-            <p class="mt-3 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              Focuses strictly on predictive blockage avoidance. Red walking triangles (library patrons) project an amber <strong>Predictive Warning Zone</strong> ahead of their travel trajectory. When the warning zone touches an active beam, the link turns ORANGE and executes a zero-downtime handover to a backup AP *before* the beam is physically cut.
-            </p>
-
-            <div class="mt-5 space-y-2 text-xs text-slate-500 dark:text-slate-400">
-              <div class="flex items-center space-x-2">
-                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>
-                <span>Directional Predictive Warning Zones with velocity tracking</span>
-              </div>
-              <div class="flex items-center space-x-2">
-                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>
-                <span>Pre-emptive Orange Threat beam triggering Green handover</span>
-              </div>
-              <div class="flex items-center space-x-2">
-                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>
-                <span>Thin Red Beam edge-case handling for unresolvable blockages</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-8 pt-6 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
-            <span class="text-xs text-slate-500 font-mono">Algorithm: Directional Raycast Handover FSM</span>
-            <button id="card-launch-solution-2" class="px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold flex items-center space-x-2 transition">
-              <span>Open Solution 2</span>
-              <i data-lucide="arrow-right" class="w-4 h-4"></i>
-            </button>
-          </div>
+        <div id="card-solution-2" class="glass-panel rounded-2xl p-7 border border-slate-200 dark:border-slate-800 hover-elevate cursor-pointer transition flex flex-col justify-center">
+          <h3 class="text-xl font-bold text-slate-900 dark:text-white">Predictive Obstacle Sensing & Proactive Handover</h3>
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            Projects forward-looking warning zones along moving patron paths to trigger seamless, zero-latency handovers before physical optical occlusion occurs.
+          </p>
         </div>
 
-      </div>
-
-      <!-- Li-Fi Technology Comparison & Physics Guide -->
-      <div class="glass-panel rounded-2xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800">
-        <h3 class="text-xl font-bold text-slate-900 dark:text-white flex items-center space-x-2">
-          <i data-lucide="cpu" class="w-5 h-5 text-blue-500"></i>
-          <span>Optical Beam Physics & Tri-State Color Logic</span>
-        </h3>
-        <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
-          Unlike radio frequency (Wi-Fi) signals that pass through walls and humans with attenuation, Li-Fi uses visible light spectrum (400–700 THz). This delivers gigabit throughput and zero electromagnetic interference, but requires unoccluded optical Line-of-Sight (LoS).
-        </p>
-
-        <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div class="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-950/20">
-            <div class="flex items-center space-x-2 text-emerald-500 font-bold text-sm">
-              <span class="w-3 h-3 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
-              <span>Thick Green Beam</span>
-            </div>
-            <p class="mt-2 text-xs text-slate-600 dark:text-slate-300">
-              Active high-speed optical connection. Optical Line-of-Sight is unobstructed, transmitting high-throughput data at full transmission rate.
-            </p>
-          </div>
-
-          <div class="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 dark:bg-amber-950/20">
-            <div class="flex items-center space-x-2 text-amber-500 font-bold text-sm">
-              <span class="w-3 h-3 rounded-full bg-amber-500 animate-pulse shadow-sm shadow-amber-500/50"></span>
-              <span>Thick Orange Beam (Pulsing)</span>
-            </div>
-            <p class="mt-2 text-xs text-slate-600 dark:text-slate-300">
-              Imminent threat warning. Moving obstacle's predictive warning zone has intersected the beam path. Triggers seamless proactive handover before physical occlusion.
-            </p>
-          </div>
-
-          <div class="p-4 rounded-xl border border-red-500/20 bg-red-500/5 dark:bg-red-950/20">
-            <div class="flex items-center space-x-2 text-red-500 font-bold text-sm">
-              <span class="w-3 h-3 rounded-full bg-red-500 shadow-sm shadow-red-500/50"></span>
-              <span>Thin Red Beam</span>
-            </div>
-            <p class="mt-2 text-xs text-slate-600 dark:text-slate-300">
-              Blocked beam / network physical failure shadow. Occurs only if the physical obstacle cuts the beam and all backup APs are either blocked or at max capacity.
-            </p>
-          </div>
+        <!-- Solution 3 Card -->
+        <div id="card-solution-3" class="glass-panel rounded-2xl p-7 border border-slate-200 dark:border-slate-800 hover-elevate cursor-pointer transition flex flex-col justify-center">
+          <h3 class="text-xl font-bold text-slate-900 dark:text-white">Dynamic Beam Steering & AP Grid Coordination</h3>
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            Dynamically coordinates the 3×2 ceiling access point array to steer optical beams around permanent library structures and maximize coverage.
+          </p>
         </div>
+
+        <!-- Solution 4 Card -->
+        <div id="card-solution-4" class="glass-panel rounded-2xl p-7 border border-slate-200 dark:border-slate-800 hover-elevate cursor-pointer transition flex flex-col justify-center">
+          <h3 class="text-xl font-bold text-slate-900 dark:text-white">Fail-Safe Redundancy & Occlusion Recovery</h3>
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            Detects unresolvable optical link blockages and initiates cascading backup reconnection protocols across alternate nodes to rapidly restore dropped connections.
+          </p>
+        </div>
+
       </div>
 
     </section>
 
     <!-- ================================================================== -->
-    <!-- VIEW 1 & 2: SIMULATION WORKSPACE (SHARED HIGH-PERFORMANCE CANVAS)    -->
+    <!-- VIEW 1: INTERACTIVE SIMULATION WORKSPACE                            -->
+    <!-- ================================================================== -->
+    <!-- ================================================================== -->
+    <!-- VIEW 1: INTERACTIVE SIMULATION WORKSPACE (2-COLUMN MAIN WORKSPACE)  -->
     <!-- ================================================================== -->
     <section id="view-simulation" class="space-y-4 hidden animate-fadeIn">
       
-      <!-- Workspace Top Title Banner -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl glass-panel border">
+      <!-- Global Top Control Panel (Horizontal Bar) -->
+      <div class="glass-toolbar p-3 rounded-xl border flex flex-wrap items-center justify-between gap-3 shadow-md">
+        
+        <!-- Left: Back Navigation & Solution Title -->
         <div class="flex items-center space-x-3">
-          <div id="solution-badge-icon" class="w-9 h-9 rounded-lg bg-blue-500/20 text-blue-500 flex items-center justify-center">
-            <i data-lucide="scale" id="solution-header-icon" class="w-5 h-5"></i>
-          </div>
+          <button id="btn-back-home" title="Return to Solutions Hub" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium flex items-center space-x-1.5 transition">
+            <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+            <span>All Solutions</span>
+          </button>
           <div>
             <div class="flex items-center space-x-2">
-              <h2 id="solution-title" class="text-lg font-bold text-slate-900 dark:text-white">Page 1: Load Balancing & Overload Redirection</h2>
-              <span id="solution-mode-tag" class="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase font-semibold">Mode: Capacity</span>
+              <h2 id="solution-title" class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">Load Balancing & Overload Redirection</h2>
+              <span id="solution-mode-tag" class="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase font-semibold">NO OBSTACLES</span>
             </div>
-            <p id="solution-subtitle" class="text-xs text-slate-500 dark:text-slate-400">
-              Observing dynamic user re-allocation when APs exceed max capacity (3 users/AP).
+            <p id="solution-subtitle" class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
+              Dynamic multi-user capacity management and overload redirection.
             </p>
           </div>
         </div>
 
-        <div class="flex items-center space-x-2 self-end sm:self-center">
-          <button id="btn-switch-solution" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium flex items-center space-x-1.5 transition">
-            <i data-lucide="repeat" class="w-3.5 h-3.5 text-slate-400"></i>
-            <span id="btn-switch-solution-text">Switch to Predictive Sensing</span>
-          </button>
-        </div>
-      </div>
+        <!-- Global Top Controls: Play, Step, Reset, Speed, Capacity -->
+        <div class="flex flex-wrap items-center gap-3">
+          
+          <!-- Play / Step / Reset Controls -->
+          <div class="flex items-center space-x-1.5">
+            <button id="btn-play-pause" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center space-x-1.5 shadow-sm transition">
+              <i data-lucide="pause" id="icon-play-pause" class="w-3.5 h-3.5"></i>
+              <span id="text-play-pause">Pause [Space]</span>
+            </button>
 
-      <!-- Interactive Control Panel Toolbar -->
-      <div class="glass-toolbar p-3 rounded-xl border flex flex-wrap items-center justify-between gap-3 shadow-md">
-        
-        <!-- Play / Pause / Step Controls -->
-        <div class="flex items-center space-x-2">
-          <button id="btn-play-pause" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center space-x-1.5 shadow-sm transition">
-            <i data-lucide="pause" id="icon-play-pause" class="w-3.5 h-3.5"></i>
-            <span id="text-play-pause">Pause [Space]</span>
-          </button>
+            <button id="btn-step-frame" title="Advance by 1 frame (when paused)" class="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-medium flex items-center space-x-1 transition disabled:opacity-40" disabled>
+              <i data-lucide="step-forward" class="w-3.5 h-3.5"></i>
+              <span>Step</span>
+            </button>
 
-          <button id="btn-step-frame" title="Advance by 1 frame (when paused)" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-medium flex items-center space-x-1 transition disabled:opacity-40" disabled>
-            <i data-lucide="step-forward" class="w-3.5 h-3.5"></i>
-            <span>Step</span>
-          </button>
+            <button id="btn-reset-sim" title="Reset simulation state" class="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-medium flex items-center space-x-1 transition">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+              <span>Reset</span>
+            </button>
+          </div>
 
-          <button id="btn-reset-sim" title="Reset obstacles and state" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-medium flex items-center space-x-1 transition">
-            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
-            <span>Reset</span>
-          </button>
-        </div>
-
-        <!-- Sliders & Animation Mode -->
-        <div class="flex flex-wrap items-center gap-4">
-          <!-- Obstacle Speed Slider -->
-          <div class="flex items-center space-x-2">
+          <!-- Simulation Speed Control Bar -->
+          <div class="flex items-center space-x-2 border-l border-slate-300 dark:border-slate-700 pl-3">
             <span class="text-xs font-medium text-slate-600 dark:text-slate-300 flex items-center space-x-1">
               <i data-lucide="gauge" class="w-3.5 h-3.5 text-slate-400"></i>
               <span>Speed:</span>
             </span>
-            <input type="range" id="slider-speed" min="0" max="5" step="0.25" value="1.0" class="w-24">
+            <input type="range" id="slider-speed" min="0.25" max="3" step="0.25" value="1.0" class="w-20">
             <span id="label-speed" class="text-xs font-mono font-semibold text-blue-500 w-8">1.0x</span>
           </div>
 
-          <!-- AP Capacity Limit Selector -->
-          <div class="flex items-center space-x-2">
+          <!-- User-Selectable Access Point Capacity -->
+          <div class="flex items-center space-x-2 border-l border-slate-300 dark:border-slate-700 pl-3">
             <span class="text-xs font-medium text-slate-600 dark:text-slate-300 flex items-center space-x-1">
               <i data-lucide="shield" class="w-3.5 h-3.5 text-slate-400"></i>
-              <span>AP Cap:</span>
+              <span>AP Capacity:</span>
             </span>
-            <select id="select-capacity" class="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-2 py-1 focus:ring-1 focus:ring-blue-500">
-              <option value="2">2 Users (Stress)</option>
-              <option value="3" selected>3 Users (Standard)</option>
-              <option value="4">4 Users (Medium)</option>
+            <select id="select-capacity" class="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-2 py-1 focus:ring-1 focus:ring-blue-500 font-medium">
+              <option value="2">2 Users (Heavy Overload)</option>
+              <option value="3">3 Users (Standard Limit)</option>
+              <option value="4" selected>4 Users (Balanced)</option>
               <option value="5">5 Users (Relaxed)</option>
+              <option value="6">6 Users (Maximum)</option>
             </select>
           </div>
 
-          <!-- Beam Animation Style -->
-          <div class="flex items-center space-x-2">
-            <span class="text-xs font-medium text-slate-600 dark:text-slate-300 flex items-center space-x-1">
-              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-slate-400"></i>
-              <span>Beams:</span>
-            </span>
-            <select id="select-beam-style" class="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-2 py-1 focus:ring-1 focus:ring-blue-500">
-              <option value="pulse" selected>Animated Pulse (Laser)</option>
-              <option value="fade">Smooth Fade</option>
-              <option value="instant">Instant Sharp</option>
-            </select>
+          <!-- Force Congestion Button (Solution 4) -->
+          <div id="container-force-congestion" class="flex items-center border-l border-slate-300 dark:border-slate-700 pl-3">
+            <button id="btn-force-congestion" class="px-2.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-sm transition" title="Instantly force AP saturation and multiple obstacle blockages">
+              <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+              <span id="btn-force-congestion-text">Force Congestion</span>
+            </button>
           </div>
-        </div>
 
-        <!-- Solution-Specific Preset Action Buttons -->
-        <div id="solution-presets-container" class="flex items-center space-x-1.5">
-          <!-- Dynamically populated via JS depending on active solution -->
+          <!-- Switch Solution Button -->
+          <div class="flex items-center border-l border-slate-300 dark:border-slate-700 pl-3">
+            <button id="btn-switch-solution" class="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium flex items-center space-x-1.5 transition">
+              <i data-lucide="repeat" class="w-3.5 h-3.5 text-slate-400"></i>
+              <span id="btn-switch-solution-text">Next Solution</span>
+            </button>
+          </div>
+
         </div>
 
       </div>
 
-      <!-- Main Workspace Grid (Canvas + Real-Time Telemetry Sidebar) -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <!-- Layout: 2-Column Main Workspace -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         
-        <!-- Left / Center: Canvas Simulation Display (8 cols on lg) -->
+        <!-- Left Side: Animation Canvas (lg:col-span-8) -->
         <div class="lg:col-span-8 flex flex-col space-y-3">
-          
           <div class="simulation-canvas-wrapper relative">
             <canvas id="simCanvas" width="1000" height="800"></canvas>
             
-            <!-- Floating Hover Inspection Tooltip -->
+            <!-- Hover Inspection Tooltip -->
             <div id="canvasTooltip" class="hidden p-3 rounded-xl bg-slate-900/95 text-white border border-slate-700 shadow-2xl text-xs space-y-1">
               <div id="tooltip-title" class="font-bold text-blue-400 border-b border-slate-700 pb-1">AP-1 Inspection</div>
               <div id="tooltip-body" class="space-y-0.5 text-slate-300">
-                <div>Load: 2 / 3 users</div>
+                <div>Load: 2 / 4 users</div>
                 <div>Status: Optimal LoS</div>
               </div>
             </div>
@@ -467,134 +301,235 @@
               </div>
             </div>
 
-            <!-- Canvas Bottom-Right Zoom / Reset View Pill -->
-            <div class="absolute bottom-3 right-3 flex items-center space-x-2">
-              <button id="btn-toggle-grid" title="Toggle Floor Grid" class="px-2 py-1 rounded bg-slate-900/80 backdrop-blur border border-slate-700 text-[10px] text-slate-300 hover:text-white font-mono transition">
-                Grid: ON
-              </button>
-              <button id="btn-toggle-zones" title="Toggle Predictive Warning Zones" class="px-2 py-1 rounded bg-slate-900/80 backdrop-blur border border-slate-700 text-[10px] text-amber-400 hover:text-amber-300 font-mono transition">
-                Zones: ON
-              </button>
+            <!-- Canvas Bottom-Right Legend Pill -->
+            <div id="canvas-legend-pill" class="absolute bottom-3 right-3 flex items-center space-x-3 bg-slate-900/90 backdrop-blur border border-slate-700 px-3 py-1.5 rounded-lg text-[11px] font-mono text-slate-300 pointer-events-none">
+              <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span><span>AP (Ceiling)</span></span>
+              <span class="text-slate-600">|</span>
+              <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span>User</span></span>
+              <span class="text-slate-600">|</span>
+              <span class="flex items-center space-x-1.5"><span class="w-3.5 h-0.5 bg-emerald-500"></span><span>Active LoS</span></span>
+              <span class="text-slate-600">|</span>
+              <span class="flex items-center space-x-1.5"><span class="w-3.5 h-0.5 bg-red-500"></span><span>Hard Limit / Cut</span></span>
             </div>
           </div>
-
-          <!-- Bottom Visual Legend Bar -->
-          <div class="p-3 rounded-xl glass-panel border flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <div class="flex items-center space-x-1.5">
-                <span class="w-3 h-3 rounded-full bg-blue-600 border border-blue-400 shadow-sm"></span>
-                <span class="font-medium text-slate-700 dark:text-slate-300">AP (Ceiling)</span>
-              </div>
-              <div class="flex items-center space-x-1.5">
-                <span class="w-3 h-3 rounded-full bg-emerald-500 border border-emerald-400"></span>
-                <span class="font-medium text-slate-700 dark:text-slate-300">Stationary User</span>
-              </div>
-              <div class="flex items-center space-x-1.5">
-                <div class="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[10px] border-b-red-600"></div>
-                <span class="font-medium text-slate-700 dark:text-slate-300">Patron (Obstacle)</span>
-              </div>
-              <div class="flex items-center space-x-1.5">
-                <div class="w-4 h-3 rounded border border-amber-400 bg-amber-400/30"></div>
-                <span class="font-medium text-slate-700 dark:text-slate-300">Warning Zone</span>
-              </div>
-              <div class="flex items-center space-x-1.5">
-                <span class="w-5 h-1 rounded bg-emerald-500"></span>
-                <span class="font-medium text-slate-700 dark:text-slate-300">Active Beam</span>
-              </div>
-              <div class="flex items-center space-x-1.5">
-                <span class="w-5 h-1 rounded bg-amber-500 animate-pulse"></span>
-                <span class="font-medium text-slate-700 dark:text-slate-300">Threat Warning</span>
-              </div>
-              <div class="flex items-center space-x-1.5">
-                <span class="w-5 h-0.5 bg-red-500"></span>
-                <span class="font-medium text-slate-700 dark:text-slate-300">Physical Cut</span>
-              </div>
-            </div>
-
-            <div class="text-[11px] text-slate-400 font-mono hidden sm:block">
-              Coordinates: 1000×800 Native
-            </div>
-          </div>
-
         </div>
 
-        <!-- Right: Real-time Telemetry & AP Matrix Sidebar (4 cols on lg) -->
-        <div class="lg:col-span-4 flex flex-col space-y-4">
+        <!-- Right Side: 2-Column Main Workspace Panel (lg:col-span-4) -->
+        <div class="lg:col-span-4 space-y-4">
           
-          <!-- Key Performance Telemetry Card -->
-          <div class="glass-panel p-4 rounded-xl border">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 flex items-center justify-between">
-              <span>Network Telemetry</span>
-              <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">LIVE FEED</span>
-            </h3>
-
-            <div class="grid grid-cols-2 gap-3">
-              <div class="p-2.5 rounded-lg bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
-                <div class="text-[11px] text-slate-500 dark:text-slate-400">Total Users</div>
-                <div id="stat-total-users" class="text-xl font-bold text-slate-900 dark:text-white font-mono">26</div>
-                <div class="text-[10px] text-slate-400">Across 5 study zones</div>
+          <!-- Panel A: Access Point Load Distribution (Solutions 1 & 2) -->
+          <div id="panel-load-distribution" class="glass-panel p-4 sm:p-5 rounded-xl border space-y-4 shadow-lg">
+            
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700/70 pb-3">
+              <div>
+                <h3 class="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white flex items-center space-x-2">
+                  <i data-lucide="scale" class="w-4 h-4 text-blue-500"></i>
+                  <span>Access Point Load Distribution</span>
+                </h3>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Real-time AP capacity and overflow meters</p>
               </div>
-
-              <div class="p-2.5 rounded-lg bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
-                <div class="text-[11px] text-slate-500 dark:text-slate-400">Connected Users</div>
-                <div id="stat-connected-users" class="text-xl font-bold text-emerald-500 font-mono">26</div>
-                <div class="text-[10px] text-emerald-400 font-medium">100% LoS Coverage</div>
-              </div>
-
-              <div class="p-2.5 rounded-lg bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
-                <div class="text-[11px] text-slate-500 dark:text-slate-400">Proactive Handovers</div>
-                <div id="stat-proactive-handovers" class="text-xl font-bold text-amber-500 font-mono">0</div>
-                <div class="text-[10px] text-amber-400">0 ms interruption</div>
-              </div>
-
-              <div class="p-2.5 rounded-lg bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
-                <div class="text-[11px] text-slate-500 dark:text-slate-400">Capacity Redirects</div>
-                <div id="stat-load-redirects" class="text-xl font-bold text-blue-500 font-mono">0</div>
-                <div class="text-[10px] text-blue-400">Load balancing</div>
-              </div>
-            </div>
-
-            <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/60 flex items-center justify-between text-xs">
-              <span class="text-slate-500">Physical Blockage Drops:</span>
-              <span id="stat-physical-drops" class="font-mono font-bold text-red-500">0</span>
-            </div>
-          </div>
-
-          <!-- AP Capacity & Load Matrix -->
-          <div class="glass-panel p-4 rounded-xl border">
-            <div class="flex items-center justify-between mb-2">
-              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                AP Load Distribution
-              </h3>
-              <span id="stat-network-saturation" class="text-xs font-mono font-bold text-blue-500">
+              <span id="stat-network-saturation" class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 border border-blue-500/20">
                 0% Saturated
               </span>
             </div>
 
-            <!-- AP Bars Container -->
+            <!-- AP Meters Container (AP-1 to AP-6) -->
             <div id="ap-meters-container" class="space-y-2.5">
-              <!-- Rendered via JS -->
+              <!-- Rendered dynamically via JS -->
             </div>
+
+            <!-- Contextual Trigger & Rebalance Controls -->
+            <div id="panel-action-controls" class="pt-3 border-t border-slate-200 dark:border-slate-700/70 space-y-2.5">
+              <div id="panel-action-title" class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Interactive Overload Actions
+              </div>
+              <div id="panel-action-buttons-grid" class="grid grid-cols-2 gap-2">
+                <button id="btn-panel-overload" class="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition shadow-sm flex items-center justify-center space-x-1">
+                  <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+                  <span>Burst Overload</span>
+                </button>
+                <button id="btn-panel-rebalance" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition flex items-center justify-center space-x-1 text-slate-700 dark:text-slate-200">
+                  <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                  <span>Rebalance All</span>
+                </button>
+              </div>
+              <p id="panel-action-description" class="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                Click <strong>Burst Overload</strong> or adjust the <strong>AP Capacity</strong> in the top toolbar to exceed limits and witness dynamic cascading Line of Sight redirection.
+              </p>
+            </div>
+
           </div>
 
-          <!-- Live Event Audit Feed -->
-          <div class="glass-panel p-4 rounded-xl border flex-1 flex flex-col min-h-[220px]">
-            <div class="flex items-center justify-between mb-2">
-              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center space-x-1.5">
-                <i data-lucide="terminal" class="w-3.5 h-3.5 text-slate-400"></i>
-                <span>Real-Time Audit Log</span>
-              </h3>
-              <button id="btn-clear-log" class="text-[10px] text-slate-400 hover:text-slate-200 transition">
-                Clear
-              </button>
+          <!-- Panel B: Real-Time SLM Phase Computation (Solution 3 ONLY) -->
+          <div id="panel-slm-computation" class="glass-panel p-4 sm:p-5 rounded-xl border space-y-4 shadow-lg hidden">
+            
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700/70 pb-3">
+              <div>
+                <h3 class="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white flex items-center space-x-2">
+                  <i data-lucide="cpu" class="w-4 h-4 text-emerald-500"></i>
+                  <span>Real-Time SLM Phase Computation</span>
+                </h3>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Spatial Light Modulator 2D Liquid Crystal Phase Hologram</p>
+              </div>
+              <span id="slm-status-badge" class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                SLM: ACTIVE
+              </span>
             </div>
 
-            <div id="eventLogList" class="event-log-container flex-1 space-y-1.5 pr-1 text-xs">
-              <!-- Live events appended here -->
-              <div class="log-entry system-info p-2 rounded text-[11px] text-emerald-400 font-mono">
-                [SYSTEM READY] Li-Fi Digital Twin engine initialized with 6 APs and 26 users.
+            <!-- Grayscale SLM Hologram Canvas Container -->
+            <div class="flex flex-col items-center justify-center space-y-2 bg-slate-950/70 rounded-xl p-3 border border-slate-800 relative">
+              <canvas id="slmCanvas" width="280" height="260" class="rounded-lg border border-slate-700/80 shadow-inner bg-black w-full max-w-[280px] h-[240px]"></canvas>
+              
+              <!-- Reticle Corner Badges -->
+              <div class="absolute top-4 left-4 text-[9px] font-mono text-emerald-400/80 bg-black/70 px-1.5 py-0.5 rounded border border-emerald-500/30 pointer-events-none">
+                LCoS 256×256
+              </div>
+              <div class="absolute bottom-4 right-4 text-[9px] font-mono text-cyan-400/90 bg-black/70 px-1.5 py-0.5 rounded border border-cyan-500/30 pointer-events-none">
+                m = +1 ORDER
               </div>
             </div>
+
+            <!-- Data Overlay: "Phase Shift Computed" Dynamically Updating -->
+            <div class="p-3.5 rounded-xl bg-slate-900/95 border border-emerald-500/30 font-mono space-y-2 shadow-inner">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-400 uppercase font-semibold text-[10px]">Optical Steering Engine</span>
+                <span id="slm-mode-badge" class="text-[11px] font-bold text-emerald-400 flex items-center space-x-1">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span id="slm-mode-text">ZERO HANDOVER</span>
+                </span>
+              </div>
+
+              <!-- Highlighted Phase Shift Computed Box -->
+              <div class="p-2 rounded-lg bg-emerald-950/40 border border-emerald-500/40 flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-300">Phase Shift Computed:</span>
+                <span id="slm-phase-shift-val" class="text-sm font-extrabold text-emerald-400">Δφ = 0.0° (0.00 rad)</span>
+              </div>
+
+              <!-- Wavefront & Arc Metrics Grid -->
+              <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-300 pt-1 border-t border-slate-800/80">
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Deflection:</span>
+                  <span id="slm-deflection-val" class="font-bold text-emerald-400">0.0°</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Clearance:</span>
+                  <span id="slm-clearance-val" class="font-bold text-emerald-400">Clear LoS</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Steering AP:</span>
+                  <span id="slm-active-ap-val" class="font-bold text-blue-400">AP-2</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Target User:</span>
+                  <span id="slm-target-user-val" class="font-bold text-emerald-400">User #11</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Contextual Controls & Explanation -->
+            <div class="pt-2 border-t border-slate-200 dark:border-slate-700/70 space-y-2">
+              <div class="grid grid-cols-2 gap-2">
+                <button id="btn-slm-speed-obstacle" class="px-2.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition shadow-sm flex items-center justify-center space-x-1">
+                  <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+                  <span>Boost Obstacle</span>
+                </button>
+                <button id="btn-slm-invert-path" class="px-2.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition shadow-sm flex items-center justify-center space-x-1">
+                  <i data-lucide="arrow-left-right" class="w-3.5 h-3.5"></i>
+                  <span>Invert Path</span>
+                </button>
+              </div>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                When an obstacle crosses a green beam, the SLM dynamically computes a 2D phase hologram, bending the optical wavefront around the obstruction via Quadratic Bezier geometry with <strong>zero handover and zero packet drop</strong>.
+              </p>
+            </div>
+
+          </div>
+
+          <!-- Panel C: Network Connection Status (Solution 4 ONLY) -->
+          <div id="panel-network-status" class="glass-panel p-4 sm:p-5 rounded-xl border space-y-4 shadow-lg hidden">
+            
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700/70 pb-3">
+              <div>
+                <h3 class="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white flex items-center space-x-2">
+                  <i data-lucide="radio" class="w-4 h-4 text-amber-500"></i>
+                  <span>Network Connection Status</span>
+                </h3>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Hybrid Optical Li-Fi / RF Wi-Fi Fallback Telemetry</p>
+              </div>
+              <span id="network-status-badge" class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                ALL ON LI-FI
+              </span>
+            </div>
+
+            <!-- Prominent Wi-Fi Fallback Queue Indicator -->
+            <div class="p-3.5 rounded-xl bg-slate-900/95 border border-amber-500/40 font-mono shadow-inner space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-400 font-semibold uppercase text-[10px] flex items-center space-x-1.5">
+                  <i data-lucide="wifi" class="w-3.5 h-3.5 text-amber-400"></i>
+                  <span>Wi-Fi Fallback Queue</span>
+                </span>
+                <span id="wifi-queue-pill" class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  MONITORING
+                </span>
+              </div>
+
+              <div class="flex items-center justify-between pt-1">
+                <div class="flex items-center space-x-3">
+                  <div class="w-9 h-9 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                    <i data-lucide="wifi-off" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <div class="text-[10px] text-slate-400 uppercase font-bold">Wi-Fi Backup Queue</div>
+                    <div class="text-xl font-extrabold text-amber-400 font-mono flex items-center space-x-1.5">
+                      <span id="stat-wifi-fallback-count">0</span>
+                      <span class="text-xs text-slate-400 font-normal">Users Active</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="text-[10px] text-slate-400 uppercase font-bold">Primary Li-Fi</div>
+                  <div class="text-xl font-extrabold text-emerald-400 font-mono">
+                    <span id="stat-lifi-primary-count">26</span>
+                    <span class="text-xs text-slate-400 font-normal">/ 26</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Fallback Ratio Visual Progress Bar -->
+              <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden flex">
+                <div id="bar-lifi-active" class="bg-emerald-500 h-2 transition-all duration-300" style="width: 100%"></div>
+                <div id="bar-wifi-fallback" class="bg-amber-500 h-2 transition-all duration-300" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <!-- AP Load Distribution Section -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                <span>Access Point Load Distribution</span>
+                <span id="stat-network-saturation-sol4" class="text-blue-400 font-mono font-bold">0% Saturated</span>
+              </div>
+              <div id="ap-meters-container-sol4" class="space-y-2">
+                <!-- Rendered dynamically via JS -->
+              </div>
+            </div>
+
+            <!-- Contextual Actions & Explanations -->
+            <div class="pt-2 border-t border-slate-200 dark:border-slate-700/70 space-y-2">
+              <div class="grid grid-cols-2 gap-2">
+                <button id="btn-panel-force-congestion" class="px-2.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold transition shadow-sm flex items-center justify-center space-x-1">
+                  <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+                  <span>Force Congestion</span>
+                </button>
+                <button id="btn-panel-self-heal" class="px-2.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition shadow-sm flex items-center justify-center space-x-1">
+                  <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                  <span>Self-Healing</span>
+                </button>
+              </div>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                When multiple obstacles block all paths or APs reach capacity, affected users shift to the <strong>central Wi-Fi Router (thin grey line)</strong>. The system continuously polls and <strong>instantly restores solid Green Li-Fi beams</strong> as soon as capacity or LoS clears.
+              </p>
+            </div>
+
           </div>
 
         </div>
@@ -604,24 +539,6 @@
     </section>
 
   </main>
-
-  <!-- ==================================================================== -->
-  <!-- FOOTER                                                               -->
-  <!-- ==================================================================== -->
-  <footer class="mt-auto border-t border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 py-4 text-xs text-slate-500">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
-      <div class="flex items-center space-x-2">
-        <span class="font-bold text-slate-700 dark:text-slate-300">LuminaLanes</span>
-        <span>•</span>
-        <span>Dynamic Li-Fi Beam Scheduling & Load Balancing Project</span>
-      </div>
-      <div class="flex items-center space-x-4">
-        <span>60 FPS HTML5 Canvas</span>
-        <span>•</span>
-        <span>Pure Standalone Client Architecture</span>
-      </div>
-    </div>
-  </footer>
 
   <!-- ==================================================================== -->
   <!-- MODAL: ARCHITECTURE & SHORTCUTS                                      -->
@@ -650,6 +567,8 @@
           <div><kbd class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200">R</kbd> : Reset Simulation & Entities</div>
           <div><kbd class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200">1</kbd> : Switch to Load Balancing View</div>
           <div><kbd class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200">2</kbd> : Switch to Predictive Sensing View</div>
+          <div><kbd class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200">3</kbd> : Switch to Beam Steering View</div>
+          <div><kbd class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200">4</kbd> : Switch to Occlusion Recovery View</div>
           <div><kbd class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200">H</kbd> : Return to Home Hub</div>
         </div>
 
@@ -667,7 +586,7 @@
   </div>
 
   <!-- Application Logic -->
-  <script src="app.js"></script>
+  <script src="app.js?v=9"></script>
   <script>
     // Initialize Lucide icons on initial load
     lucide.createIcons();
