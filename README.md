@@ -1,4 +1,5 @@
 # LuminaLanes
+
 # Visible Light Communication (Li-Fi) is a wireless communication technology that uses LED light to transmit data. It can provide very high-speed communication, but unlike Wi-Fi, it requires a clear Line-of-Sight (LoS) between the Li-Fi Access Point and the user's device. This becomes a major challenge in crowded indoor environments such as university libraries, classrooms, offices, and laboratories, where people are constantly moving.
 
 # When a person walks between a user and a ceiling-mounted Li-Fi Access Point, the person's body can block the light signal. This can cause a sudden reduction in signal strength, packet loss, increased latency, network timeouts, and even a dropped connection. Traditional systems usually respond only after the signal has already degraded.
