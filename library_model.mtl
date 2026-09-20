@@ -1,0 +1,106 @@
+# LuminaLanes Library Digital Twin Material Library
+
+newmtl Floor_Dark
+Ka 0.1 0.1 0.1
+Kd 0.0400 0.0600 0.1000
+Ks 0.5 0.5 0.5
+Ns 40.0
+d 1.0
+illum 2
+
+newmtl Floor_Grid
+Ka 0.1 0.1 0.1
+Kd 0.1500 0.3500 0.6500
+Ks 0.5 0.5 0.5
+Ns 40.0
+d 1.0
+illum 2
+
+newmtl Bookshelf_Body
+Ka 0.1 0.1 0.1
+Kd 0.0900 0.1200 0.1800
+Ks 0.5 0.5 0.5
+Ns 40.0
+d 1.0
+illum 2
+
+newmtl Bookshelf_Trim
+Ka 0.1 0.1 0.1
+Kd 0.8500 0.4700 0.0200
+Ks 0.5 0.5 0.5
+Ns 40.0
+d 1.0
+illum 2
+
+newmtl Table_Top
+Ka 0.1 0.1 0.1
+Kd 0.1200 0.1600 0.2300
+Ks 0.5 0.5 0.5
+Ns 40.0
+d 1.0
+illum 2
+
+newmtl Table_Leg
+Ka 0.1 0.1 0.1
+Kd 0.0600 0.0900 0.1600
+Ks 0.5 0.5 0.5
+Ns 40.0
+d 1.0
+illum 2
+
+newmtl Table_Glow_Ring
+Ka 0.1 0.1 0.1
+Kd 0.2300 0.5100 0.9600
+Ks 0.5 0.5 0.5
+Ns 40.0
+d 1.0
+illum 2
+
+newmtl Lane_Walkway
+Ka 0.1 0.1 0.1
+Kd 0.1200 0.2300 0.5400
+Ks 0.5 0.5 0.5
+Ns 40.0
+d 1.0
+illum 2
+
+newmtl Lane_Guideline
+Ka 0.1 0.1 0.1
+Kd 0.3800 0.6500 0.9800
+Ks 0.5 0.5 0.5
+Ns 40.0
+d 1.0
+illum 2
+
+newmtl Junction_Sensor_Floor
+Ka 0.1 0.1 0.1
+Kd 0.9800 0.8000 0.0800
+Ks 0.5 0.5 0.5
+Ns 40.0
+d 1.0
+illum 2
+
+newmtl AP_Ceiling_Node
+Ka 0.1 0.1 0.1
+Kd 0.2300 0.5100 0.9600
+Ks 0.5 0.5 0.5
+Ns 40.0
+d 1.0
+illum 2
+
+newmtl User_Patron_Dot
+Ka 0.1 0.1 0.1
+Kd 0.2200 0.7400 0.9700
+Ks 0.5 0.5 0.5
+Ns 40.0
+d 1.0
+illum 2
+
+newmtl Camera_Junction_Node
+Ka 0.1 0.1 0.1
+Kd 0.9800 0.8000 0.0800
+Ks 0.5 0.5 0.5
+Ns 40.0
+d 1.0
+illum 2
+

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LuminaLanes — 3D Library Digital Twin Model Viewer</title>
+  <meta name="description" content="Standalone 3D Model Viewer for LuminaLanes Library Digital Twin. Inspect the 3D floorplan, bookshelves, study tables, APs, users, and sensor cameras.">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js & OrbitControls via CDN -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <style>
+    :root {
+      --bg-dark: #070b14;
+      --panel-bg: rgba(15, 23, 42, 0.85);
+      --panel-border: rgba(59, 130, 246, 0.25);
+      --accent-blue: #3b82f6;
+      --accent-cyan: #38bdf8;
+      --accent-amber: #f59e0b;
+      --accent-yellow: #facc15;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-dark);
+      font-family: 'Inter', sans-serif;
+      color: var(--text-main);
+      user-select: none;
+    }
+
+    #webgl-canvas {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+
+    /* Top Navigation / Brand Header */
+    header {
+      position: absolute;
+      top: 16px;
+      left: 20px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      pointer-events: auto;
+    }
+
+    .brand-pill {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      backdrop-filter: blur(14px);
+      padding: 10px 18px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6), 0 0 15px rgba(37, 99, 235, 0.15);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-badge {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #2563eb, #38bdf8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
+      font-size: 13px;
+      font-weight: 900;
+      color: #ffffff;
+    }
+
+    .brand-title {
+      font-size: 15px;
+      font-weight: 800;
+      background: linear-gradient(90deg, #60a5fa, #38bdf8, #93c5fd);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-subtitle {
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-muted);
+      letter-spacing: 0.04em;
+    }
+
+    /* Top Right Action & Download Buttons */
+    .top-actions {
+      position: absolute;
+      top: 16px;
+      right: 20px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    .btn-action {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      backdrop-filter: blur(12px);
+      color: #e2e8f0;
+      padding: 9px 14px;
+      border-radius: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    }
+
+    .btn-action:hover {
+      background: rgba(30, 58, 138, 0.6);
+      border-color: #3b82f6;
+      color: #ffffff;
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .btn-action.download-glb {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.3), rgba(14, 165, 233, 0.2));
+      border-color: #38bdf8;
+      color: #93c5fd;
+    }
+
+    .btn-action.download-glb:hover {
+      background: linear-gradient(135deg, #2563eb, #0284c7);
+      color: #ffffff;
+    }
+
+    /* Bottom HUD Legend */
+    .hud-bottom {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      backdrop-filter: blur(14px);
+      padding: 10px 24px;
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+      pointer-events: none;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .legend-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot-ap { background: #3b82f6; box-shadow: 0 0 8px #3b82f6; }
+    .dot-user { background: #38bdf8; box-shadow: 0 0 6px #38bdf8; }
+    .dot-camera { background: #facc15; box-shadow: 0 0 6px #facc15; border-radius: 2px; }
+    .dot-bookshelf { background: #475569; border: 1px solid #d97706; border-radius: 2px; }
+
+    .separator {
+      color: rgba(148, 163, 184, 0.3);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- WebGL 3D Canvas -->
+  <div id="webgl-canvas"></div>
+
+  <!-- Header -->
+  <header>
+    <div class="brand-pill">
+      <div class="brand-badge">3D</div>
+      <div>
+        <div class="brand-title">LuminaLanes — 3D Library Digital Twin</div>
+        <div class="brand-subtitle">STANDALONE WEBGL 3D MODEL VIEWER</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Top Right Action Controls -->
+  <div class="top-actions">
+    <button class="btn-action" onclick="resetCameraView()">
+      <span>Reset View</span>
+    </button>
+    <a href="library_model.glb" download="library_model.glb" class="btn-action download-glb">
+      <span>⬇ Download .GLB (347 KB)</span>
+    </a>
+    <a href="library_model.obj" download="library_model.obj" class="btn-action">
+      <span>⬇ Download .OBJ (845 KB)</span>
+    </a>
+  </div>
+
+  <!-- Bottom Legend Bar -->
+  <div class="hud-bottom">
+    <div class="legend-item">
+      <span class="legend-dot dot-ap"></span>
+      <span style="color: #93c5fd;">6 APs (Ceiling Nodes)</span>
+    </div>
+    <span class="separator">|</span>
+    <div class="legend-item">
+      <span class="legend-dot dot-user"></span>
+      <span style="color: #bae6fd;">21 Users (Patrons)</span>
+    </div>
+    <span class="separator">|</span>
+    <div class="legend-item">
+      <span class="legend-dot dot-camera"></span>
+      <span style="color: #fde047;">4 Cameras (Junctions)</span>
+    </div>
+    <span class="separator">|</span>
+    <div class="legend-item">
+      <span class="legend-dot dot-bookshelf"></span>
+      <span style="color: #e2e8f0;">12 Bookshelves & 5 Tables</span>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { LibraryEnvironment } from './static/LibraryScene.js';
+
+    // 1. Initialize environment
+    const environment = new LibraryEnvironment('webgl-canvas');
+    environment.init();
+
+    // 2. Window globals for controls
+    window.libraryEnv = environment;
+    window.resetCameraView = function() {
+      if (!environment.camera || !environment.controls) return;
+      environment.camera.position.set(0, 32, 38);
+      environment.camera.lookAt(0, 0, 0);
+      environment.controls.target.set(0, 1.5, 0);
+      environment.controls.update();
+    };
+
+    // 3. Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+      environment.render();
+    }
+    animate();
+  </script>
+</body>
+</html>
