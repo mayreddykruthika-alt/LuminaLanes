@@ -3397,6 +3397,17 @@ class LiFiDigitalTwin {
     document.getElementById('card-solution-3')?.addEventListener('click', () => this.setSolution('beam-steering'));
     document.getElementById('card-solution-4')?.addEventListener('click', () => this.setSolution('fail-safe'));
 
+    // 3D Environment Model Card
+    const card3D = document.getElementById('card-3d-model');
+    if (card3D) {
+      card3D.addEventListener('click', (e) => {
+        if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+          e.preventDefault();
+          window.location.href = '3d_model.html';
+        }
+      });
+    }
+
     // Switch / Cycle Solutions
     const solutionCycle = ['load-balance', 'predictive', 'beam-steering', 'fail-safe'];
     document.getElementById('btn-switch-solution')?.addEventListener('click', () => {
